@@ -95,7 +95,7 @@ Inductive PExp : Set :=
 | And : PExp -> PExp -> PExp *)
 
 (* Protocol Types *)
-Inductive PType : Set :=
+Inductive PType : Type :=
 | TNat
 | TEps
 | TSend : PType -> PType -> PType
@@ -115,6 +115,7 @@ Inductive hasType : PExp -> PType -> Prop :=
                        hasType (Rec e1 e2) (TRec t1 t2).
 
 
+
 Notation "x :!: y" := (Send x y)
                           (at level 50, left associativity).
 
@@ -127,17 +128,27 @@ Notation "x ! y" := (TSend x y)
 Notation "x ? y" := (TRec x y)
                       (at level 50, left associativity).
 
+Notation "x :T: y" := (hasType x y)
+                       (at level 50, left associativity).
+
 Check ((Nat 4) :!: Eps).
+
+Definition Session (a:PType) (b:PType) := (a, b).
+
+(*Definition send {A:Type} {a r : PType} : A -> (Session (a ! r) (r)) -> nat := 3. *)
 
 Hint Constructors hasType.
 
 Example sendWellTyped1 : hasType ((Nat 4) :!: Eps) (TNat ! TEps).
 Proof. auto. Qed.
 
-Example sendWellTyped2 : hasType ((Plus (Nat 3) (Nat 1)) :!: Eps) (TNat ! TEps).
+Example sendWellTyped1' : ((Nat 4) :!: Eps) :T: (TNat ! TEps).
 Proof. auto. Qed.
 
-Example sendWellTypedConcerning : hasType ((Nat 4) :!: (Nat 4)) (TNat ! TNat).
+Example sendWellTyped2 : ((Plus (Nat 3) (Nat 1)) :!: Eps) :T: (TNat ! TEps).
+Proof. auto. Qed.
+
+Example sendWellTypedConcerning : ((Nat 4) :!: (Nat 4)) :T: (TNat ! TNat).
 Proof. eauto. Qed.
 
 
@@ -183,3 +194,82 @@ Proof. eauto. Abort.
 
 
 End try3.
+
+Module try4.
+
+Inductive SendT (A:Type) (R:Type) :=.
+Inductive RecT (A:Type) (R:Type) :=.
+Inductive EpsT := epsC.
+
+Definition send {A R :Type} (a:A) (p: (SendT A R)) : R := match p with end.
+
+Check send 3 _.
+
+
+End try4.
+
+Module try5.
+
+Inductive SendT (A:Type) (R:Type) : Type := sendC : A -> R -> SendT A R.
+Inductive RecT  (A:Type) (R:Type) : Type := recC : R -> RecT A R.
+Inductive EpsT := epsC.
+
+Notation "x :!: y" := (SendT x y)
+                        (at level 50, left associativity).
+
+Notation "x :?: y" := (RecT x y)
+                        (at level 50, left associativity).
+
+Definition send {A R :Type} (s : A :!: R) : R :=
+  match s with
+    sendC _ r => r
+  end.
+
+(* Should we account for the received value of type A here?  With the current implementation, it simply disappears.  Maybe it should return a pair:  (A,R) *)
+Definition receive {A R :Type} (s : A :?: R) : R :=
+  match s with
+    recC r => r
+  end.
+
+
+Definition proto1 := (sendC nat EpsT).
+Check proto1.
+
+Definition proto1Applied := proto1 3 epsC.
+Check proto1Applied.
+
+Definition afterSend := send proto1Applied.
+Eval compute in afterSend.
+
+Definition proto2 := (recC nat EpsT).
+Check proto2.
+
+Definition proto2Applied := proto2 epsC.
+Check proto2Applied.
+
+(* Where does the received value go after this application? *)
+Definition afterReceive := receive proto2Applied.
+Eval compute in afterReceive.
+
+Definition proto3 := sendC nat (RecT nat EpsT).
+Eval compute in proto3.
+
+Definition proto3Applied := proto3 1 proto2Applied.
+Check proto3Applied.
+Eval compute in proto3Applied.
+
+Inductive Dual : Type -> Type -> Prop :=
+| senRec : forall a r s, Dual r s -> Dual (a :!: r) (a :?: s)
+| recSen : forall a r s, Dual r s -> Dual (a :?: r) (a :!: s)
+| dualEps : Dual EpsT EpsT.
+
+Hint Constructors Dual SendT RecT EpsT.
+
+Example dual1 : Dual (nat :!: EpsT) (nat :?: EpsT).
+Proof. auto. Qed.
+
+Example dual2 : Dual (nat :!: (nat :?: EpsT)) (nat :?: (nat :!: EpsT)).
+Proof. auto. Qed.
+
+End try5.
+
