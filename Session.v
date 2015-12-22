@@ -296,6 +296,12 @@ Inductive session : Type :=
 | sendC : forall (B:Type),  session -> session
 | receiveC : forall (B:Type), session -> session.
 
+Notation "x :!: y" := (sendC x y)
+                        (at level 50, left associativity).
+
+Notation "x :?: y" := (receiveC x y)
+                        (at level 50, left associativity).
+
 Check sendC nat (receiveC bool epsC).
 
 Definition unwrap (s:session) : session :=
@@ -321,6 +327,20 @@ Definition receiveReady (s:session) (A:Type) : Prop :=
 
 
 Definition send {A:Type} (x:A) (s:session) : (sendReady s A) -> 
+  {u:session | u = unwrap(s)}.
+    refine
+      (fun p  =>
+      match s with 
+      | sendC _ u => _
+      | receiveC _ u => _
+      | epsC => _
+      end).
+    unfold sendReady in p. destruct s in p. contradiction. unfold unwrap. apply (exist _ epsC). reflexivity. contradiction.
+    unfold sendReady in p. destruct s in p. contradiction. unfold unwrap. apply (exist _ u). reflexivity. contradiction.
+    unfold sendReady in p. destruct s in p. contradiction. unfold unwrap. apply (exist _ u). reflexivity. contradiction.
+Defined.
+
+Definition send' {A:Type} (pa:A->Prop)(ss:{x:A | pa x}) (s:session) : (sendReady s A) -> 
   {u:session | u = unwrap(s)}.
     refine
       (fun p  =>
@@ -372,6 +392,9 @@ Inductive Dual : session -> session -> Prop :=
 Definition proto3 := receiveC bool (receiveC nat epsC).
 Print proto3.
 
+Hint Constructors Dual.
+Example dualExample : Dual proto2 proto3. unfold proto2. unfold proto3. auto. Qed.
+
 Example receiveReady3 : receiveReady proto3 bool. reflexivity. Qed.
 
 Eval compute in ((receive true proto3) receiveReady3).
@@ -384,6 +407,21 @@ Example receiveReady4 : receiveReady proto4 nat. reflexivity. Qed.
 
 Eval compute in ((receive 1 proto4) receiveReady4).
 Eval compute in unwrap proto4.
+
+
+Definition proto2' := sendC bool (sendC nat epsC).
+Print proto2'.
+
+Example sendReady2' : sendReady proto2' bool. reflexivity. Qed.
+
+Definition proto2'Pred := (fun (x:bool) => True).
+Example proto2'PredProof : (proto2'Pred true). reflexivity. Qed.
+
+Eval compute in send' proto2'Pred (exist proto2'Pred true proto2'PredProof) proto2 sendReady2'.
+Eval compute in unwrap proto2.
+
+Definition testSend' := send' proto2'Pred (exist proto2'Pred true proto2'PredProof) proto2 sendReady2'.
+
 
   
 End try6.
