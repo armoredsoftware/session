@@ -340,7 +340,7 @@ Definition send {A:Type} (x:A) (s:session) : (sendReady s A) ->
     unfold sendReady in p. destruct s in p. contradiction. unfold unwrap. apply (exist _ u). reflexivity. contradiction.
 Defined.
 
-Definition send' {A:Type} (pa:A->Prop)(ss:{x:A | pa x}) (s:session) : (sendReady s A) -> 
+Definition send' {A:Type} {pa:A->Prop} (ss:{x:A | pa x}) (s:session) : (sendReady s A) -> 
   {u:session | u = unwrap(s)}.
     refine
       (fun p  =>
@@ -354,6 +354,7 @@ Definition send' {A:Type} (pa:A->Prop)(ss:{x:A | pa x}) (s:session) : (sendReady
     unfold sendReady in p. destruct s in p. contradiction. unfold unwrap. apply (exist _ u). reflexivity. contradiction.
 Defined.
 
+(* TODO:  make the return type a sumbool.  The left side returns the current return type: a subset type that represents the "rest" of the protocol.  The right side returns a proof that the input predicate on the (x:A) could not be proven.  Note, this may require putting an additional restriction on the input predicate that it is decidable. *)
 Definition receive {A:Type} (x:A) (s:session) : (receiveReady s A) -> 
   {u:session | u = unwrap(s)}.
     refine
@@ -417,12 +418,8 @@ Example sendReady2' : sendReady proto2' bool. reflexivity. Qed.
 Definition proto2'Pred := (fun (x:bool) => True).
 Example proto2'PredProof : (proto2'Pred true). reflexivity. Qed.
 
-Eval compute in send' proto2'Pred (exist proto2'Pred true proto2'PredProof) proto2 sendReady2'.
+Eval compute in send' (exist proto2'Pred true proto2'PredProof) proto2 sendReady2'.
 Eval compute in unwrap proto2.
-
-Definition testSend' := send' proto2'Pred (exist proto2'Pred true proto2'PredProof) proto2 sendReady2'.
-
-
   
 End try6.
 
