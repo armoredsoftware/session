@@ -197,13 +197,28 @@ End try3.
 
 Module try4.
 
-Inductive SendT (A:Type) (R:Type) :=.
-Inductive RecT (A:Type) (R:Type) :=.
+Definition SendT (A:Type) (R:Type) :=
+  fun (x:A) => R.
+
+    
 Inductive EpsT := epsC.
+
+
+Check SendT nat EpsT.
+
+(*Inductive ProtoT (R:Type) : Type :=
+| sendC {A:Type} : SendT A (ProtoT R) -> ProtoT R
+| receiveC {A:Type} : RecT A (ProtoT R) -> ProtoT R.
+
+Check sendC EpsT (
+
+Check sendC nat (EpsT).
+
+Definition isSend : Prop 
 
 Definition send {A R :Type} (a:A) (p: (SendT A R)) : R := match p with end.
 
-Check send 3 _.
+Check send 3 _. *)
 
 
 End try4.
@@ -219,6 +234,8 @@ Notation "x :!: y" := (SendT x y)
 
 Notation "x :?: y" := (RecT x y)
                         (at level 50, left associativity).
+
+Eval compute in sendC nat EpsT.
 
 Definition send {A R :Type} (s : A :!: R) : R :=
   match s with
@@ -236,7 +253,7 @@ Definition proto1 := (sendC nat EpsT).
 Check proto1.
 
 Definition proto1Applied := proto1 3 epsC.
-Check proto1Applied.
+Print proto1Applied.
 
 Definition afterSend := send proto1Applied.
 Eval compute in afterSend.
@@ -255,7 +272,6 @@ Definition proto3 := sendC nat (RecT nat EpsT).
 Eval compute in proto3.
 
 Definition proto3Applied := proto3 1 proto2Applied.
-Check proto3Applied.
 Eval compute in proto3Applied.
 
 Inductive Dual : Type -> Type -> Prop :=
@@ -272,4 +288,103 @@ Example dual2 : Dual (nat :!: (nat :?: EpsT)) (nat :?: (nat :!: EpsT)).
 Proof. auto. Qed.
 
 End try5.
+
+Module try6.
+
+Inductive session : Type :=
+| epsC : session
+| sendC : forall (B:Type),  session -> session
+| receiveC : forall (B:Type), session -> session.
+
+Check sendC nat (receiveC bool epsC).
+
+Definition unwrap (s:session) : session :=
+  match s with
+  | epsC => s
+  | sendC B s' => s'
+  | receiveC B s' => s'
+  end.
+
+Definition sendReady (s:session) (A:Type) : Prop :=
+  match s with
+  | epsC => False
+  | sendC A _ => True
+  | receiveC _ _ => False
+  end.
+
+Definition receiveReady (s:session) (A:Type) : Prop :=
+  match s with
+  | epsC => False
+  | sendC A _ => False
+  | receiveC _ _ => True
+  end.
+
+
+Definition send {A:Type} (x:A) (s:session) : (sendReady s A) -> 
+  {u:session | u = unwrap(s)}.
+    refine
+      (fun p  =>
+      match s with 
+      | sendC _ u => _
+      | receiveC _ u => _
+      | epsC => _
+      end).
+    unfold sendReady in p. destruct s in p. contradiction. unfold unwrap. apply (exist _ epsC). reflexivity. contradiction.
+    unfold sendReady in p. destruct s in p. contradiction. unfold unwrap. apply (exist _ u). reflexivity. contradiction.
+    unfold sendReady in p. destruct s in p. contradiction. unfold unwrap. apply (exist _ u). reflexivity. contradiction.
+Defined.
+
+Definition receive {A:Type} (x:A) (s:session) : (receiveReady s A) -> 
+  {u:session | u = unwrap(s)}.
+    refine
+      (fun p  =>
+      match s with 
+      | sendC _ u => _
+      | receiveC _ u => _
+      | epsC => _
+      end).
+    unfold receiveReady in p. destruct s in p. contradiction. contradiction. unfold unwrap. apply (exist _ epsC). reflexivity. 
+    unfold receiveReady in p. destruct s in p. contradiction. contradiction. unfold unwrap. apply (exist _ u). reflexivity.
+    unfold receiveReady in p. destruct s in p. contradiction. contradiction. unfold unwrap. apply (exist _ u). reflexivity.
+Defined.
+
+Definition proto2 := sendC bool (sendC nat epsC).
+Print proto2.
+
+Example sendReady2 : sendReady proto2 bool. reflexivity. Qed.
+
+Eval compute in ((send true proto2) sendReady2).
+Eval compute in unwrap proto2.
+
+Definition proto1 := unwrap proto2.
+Eval compute in proto1.
+
+Example sendReady1 : sendReady proto1 nat. reflexivity. Qed.
+
+Eval compute in ((send 1 proto1) sendReady1).
+Eval compute in unwrap proto1.
+
+Inductive Dual : session -> session -> Prop :=
+| dualEps : Dual epsC epsC
+| senRec : forall A r s, Dual r s -> Dual (sendC A r) (receiveC A s)
+| recSen : forall A r s, Dual r s -> Dual (receiveC A s) (sendC A r).                                    
+
+Definition proto3 := receiveC bool (receiveC nat epsC).
+Print proto3.
+
+Example receiveReady3 : receiveReady proto3 bool. reflexivity. Qed.
+
+Eval compute in ((receive true proto3) receiveReady3).
+Eval compute in unwrap proto3.
+
+Definition proto4 := unwrap proto3.
+Eval compute in proto4.
+
+Example receiveReady4 : receiveReady proto4 nat. reflexivity. Qed.
+
+Eval compute in ((receive 1 proto4) receiveReady4).
+Eval compute in unwrap proto4.
+
+  
+End try6.
 
