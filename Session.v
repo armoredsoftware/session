@@ -294,7 +294,9 @@ Module try6.
 Inductive session : Type :=
 | epsC : session
 | sendC : forall (B:Type),  session -> session
-| receiveC : forall (B:Type), session -> session.
+| receiveC : forall (B:Type), session -> session
+(*| choiceC : session -> session -> session
+| offerC : session -> session -> session*).
 
 Notation "x :!: y" := (sendC x y)
                         (at level 50, left associativity).
@@ -302,13 +304,21 @@ Notation "x :!: y" := (sendC x y)
 Notation "x :?: y" := (receiveC x y)
                         (at level 50, left associativity).
 
+(*Notation "x :+: y" := (choiceC x y)
+                        (at level 50, left associativity).
+
+Notation "x :&: y" := (offerC x y)
+                        (at level 50, left associativity). *)
+
 Check sendC nat (receiveC bool epsC).
 
-Definition unwrap (s:session) : session :=
+Definition unwrap (s:session) (*(b:bool)*) : session :=
   match s with
   | epsC => s
   | sendC B s' => s'
   | receiveC B s' => s'
+  (*| choiceC r s => if (b) then r else s
+  | offerC r s => if (b) then r else s   *)                                  
   end.
 
 Definition sendReady (s:session) (A:Type) : Prop :=
@@ -316,6 +326,8 @@ Definition sendReady (s:session) (A:Type) : Prop :=
   | epsC => False
   | sendC A _ => True
   | receiveC _ _ => False
+(*  | choiceC _ _ => False
+  | offerC _ _ => False *)
   end.
 
 Definition receiveReady (s:session) (A:Type) : Prop :=
@@ -323,8 +335,14 @@ Definition receiveReady (s:session) (A:Type) : Prop :=
   | epsC => False
   | sendC A _ => False
   | receiveC _ _ => True
+  (*| choiceC _ _ => False
+  | offerC _ _ => False  *)                
   end.
 
+Check sendC nat (receiveC bool epsC).
+
+Definition trans (A:Type) (B:Type) := A -> B.
+Definition transEx : trans nat bool := (fun (x:nat) => true).
 
 Definition send {A:Type} (x:A) (s:session) : (sendReady s A) -> 
   {u:session | u = unwrap(s)}.
@@ -354,7 +372,7 @@ Definition send' {A:Type} {pa:A->Prop} (ss:{x:A | pa x}) (s:session) : (sendRead
     unfold sendReady in p. destruct s in p. contradiction. unfold unwrap. apply (exist _ u). reflexivity. contradiction.
 Defined.
 
-(* TODO:  make the return type a sumbool.  The left side returns the current return type: a subset type that represents the "rest" of the protocol.  The right side returns a proof that the input predicate on the (x:A) could not be proven.  Note, this may require putting an additional restriction on the input predicate that it is decidable. *)
+(* TODO:  make the return type a sumor.  The left side returns the current return type: a subset type that represents the "rest" of the protocol.  The right side returns a proof that the input predicate on the (x:A) could not be proven.  Note, this may require putting an additional restriction on the input predicate that it is decidable. *)
 Definition receive {A:Type} (x:A) (s:session) : (receiveReady s A) -> 
   {u:session | u = unwrap(s)}.
     refine
@@ -398,8 +416,8 @@ Example dualExample : Dual proto2 proto3. unfold proto2. unfold proto3. auto. Qe
 
 Example receiveReady3 : receiveReady proto3 bool. reflexivity. Qed.
 
-Eval compute in ((receive true proto3) receiveReady3).
-Eval compute in unwrap proto3.
+Eval compute in proj1_sig ((receive true proto3) receiveReady3).
+(*Eval compute in unwrap proto3. *)
 
 Definition proto4 := unwrap proto3.
 Eval compute in proto4.
@@ -420,6 +438,22 @@ Example proto2'PredProof : (proto2'Pred true). reflexivity. Qed.
 
 Eval compute in send' (exist proto2'Pred true proto2'PredProof) proto2 sendReady2'.
 Eval compute in unwrap proto2.
+
+Set Implicit Arguments.
+(*Variable A : Set. *)
+Inductive maybe (A : Set) (P : A -> Prop) : Set :=
+| Unknown : maybe P
+| Found : forall x : A, P x -> maybe P.
+
+Notation "{{ x | P }}" := (maybe (fun x => P)).
+Notation "??" := (Unknown ).
+Notation "[| x |]" := (Found _ x  _).
+
+Notation "x <- e1 ; e2" := (match e1 with
+| Unknown => ??
+| Found x _ => e2
+end)
+(right associativity, at level 60).
   
 End try6.
 
