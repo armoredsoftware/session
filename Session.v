@@ -308,19 +308,21 @@ Inductive session (B:Type) : Type :=
 | choiceC : bool -> session B -> session B
 | offerC : bool -> session B -> session B -> session B.
 
-Notation "x :!: y" := (sendC x y)
+Notation "x :!: y" := (sendC _ x y)
                         (at level 50, left associativity).
 
-Notation "x :?: y" := (receiveC x y)
+Notation "x :?: y" := (receiveC _ x y)
                         (at level 50, left associativity).
 
-Notation "x :+: y" := (choiceC x y)
+Notation "x :+: y" := (choiceC _ x y)
                         (at level 50, left associativity).
 
-Notation "x :&: y" := (offerC x y)
+Notation "x :&: y" := (offerC _ x y)
                         (at level 50, left associativity).
 
 Check sendC nat 3 (receiveC nat 3 (epsC nat)).
+
+Check 3 :!: (4 :?: epsC nat).
 
 Definition unwrap {T:Type} (s:session T) : session T :=
   match s with
@@ -428,7 +430,7 @@ Print proto2.
 
 Example sendReady2 : sendReady proto2. reflexivity. Qed.
 
-Eval compute in (send 3 proto2).
+Eval compute in ((send 3 proto2) sendReady2).
 Eval compute in unwrap proto2.
 Print proto2.
 
