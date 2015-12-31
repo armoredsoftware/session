@@ -292,12 +292,21 @@ End try5.
 
 Module try6.
 
-Inductive session : Type :=
-| epsC : session
-| sendC : forall (B:Type),  session -> session
-| receiveC : forall (B:Type), session -> session
-| choiceC : session -> session -> session
-| offerC : session -> session -> session.
+(** [session] is parameterized over message type [B].  [epsC] is the epsilon
+  transition, [send x] sends the message [x] of type [B], [receive x] receives
+  the message [x] of type [B].  [choice] indicates the choice made between
+  two remote protocols and continue executing.  [offer] uses its input to
+  select between left and right protocols. *)
+
+(** Note that [B] really should be infered to allow the use of infix operations
+  that just don't work well right now *)
+  
+Inductive session (B:Type) : Type :=
+| epsC : session B
+| sendC : forall (a:B),  session B -> session B
+| receiveC : forall (a:B), session B -> session B
+| choiceC : bool -> session B -> session B
+| offerC : bool -> session B -> session B -> session B.
 
 Notation "x :!: y" := (sendC x y)
                         (at level 50, left associativity).
@@ -311,36 +320,43 @@ Notation "x :+: y" := (choiceC x y)
 Notation "x :&: y" := (offerC x y)
                         (at level 50, left associativity).
 
-Check sendC nat (receiveC bool epsC).
+Check sendC nat 3 (receiveC nat 3 (epsC nat)).
 
-Definition unwrap (s:session) (b:bool) : session :=
+Definition unwrap {T:Type} (s:session T) : session T :=
   match s with
   | epsC => s
-  | sendC B s' => s'
-  | receiveC B s' => s'
-  | choiceC r s => if (b) then r else s
-  | offerC r s => if (b) then r else s                                  
+  | sendC _ s' => s'
+  | receiveC _ s' => s'
+  | choiceC _ s' => s'
+  | offerC b r s => if (b) then r else s                                  
   end.
 
-Definition sendReady (s:session) (A:Type) : Prop :=
+Definition sendReady {T:Type} (s:session T) : Prop :=
   match s with
   | epsC => False
-  | sendC A _ => True
+  | sendC T _ => True
   | receiveC _ _ => False
   | choiceC _ _ => False
-  | offerC _ _ => False
+  | offerC _ _ _ => False
   end.
 
-Definition receiveReady (s:session) (A:Type) : Prop :=
+Definition receiveReady {A:Type} (s:session A) : Prop :=
   match s with
   | epsC => False
   | sendC A _ => False
   | receiveC _ _ => True
   | choiceC _ _ => False
-  | offerC _ _ => False
+  | offerC _ _ _ => False
   end.
 
-Check sendC nat (receiveC bool epsC).
+Check sendC nat _ (receiveC nat _ (epsC nat)).
+
+Example sendReady_ex1: (sendReady (sendC nat 3 (receiveC nat 3 (epsC nat)))).
+reflexivity.
+Qed.
+
+Example sendReady_ex2: ~(sendReady (receiveC nat 3 (epsC nat))).
+unfold not. intros. inversion H. Qed.
 
 Definition trans (A:Type) (B:Type) := A -> B.
 Definition transEx : trans nat bool := (fun (x:nat) => true).
@@ -349,112 +365,118 @@ Definition transEx : trans nat bool := (fun (x:nat) => true).
   [s] is [sendReady] with respect to some type [A].  Choking right now
   on boolean argument to [choice]/[offer] that is input to [unwrap] *)
 
-Definition send {A:Type} (x:A) (s:session) (c:bool) : (sendReady s A) -> 
-  {u:session | u = (unwrap s c)}.
+Definition send {A:Type} (x:A) (s:session A) : (sendReady s) -> 
+  {u:session A | u = (unwrap s)}.
     refine
       (fun p  =>
       match s with 
-      | sendC _ u => _
-      | receiveC _ u => _
+      | sendC _ _ => _
+      | receiveC _ _ => _
       | epsC => _
       | choiceC _ _ => _
-      | offerC _ _ => _
+      | offerC _ _ _ => _
       end).
-    unfold sendReady in p. destruct s in p. contradiction. unfold unwrap. apply (exist _ epsC). reflexivity. contradiction. contradiction. contradiction.
-    unfold sendReady in p. destruct s in p. contradiction. unfold unwrap. apply (exist _ u). reflexivity. contradiction. contradiction. contradiction.
-    unfold sendReady in p. destruct s in p. contradiction. unfold unwrap. apply (exist _ u). reflexivity. contradiction. contradiction. contradiction.
-    unfold sendReady in p. destruct s in p. contradiction. unfold unwrap. destruct c. apply (exist _ s0). reflexivity. apply (exist _ s1). reflexivity. contradiction. contradiction. contradiction.
-    unfold sendReady in p. destruct s in p. contradiction. unfold unwrap. destruct c. apply (exist _ s0). reflexivity. apply (exist _ s1). reflexivity. contradiction. contradiction. contradiction.
+    unfold sendReady in p. destruct s in p. contradiction. unfold unwrap. apply (exist _ (epsC A)). reflexivity. contradiction. contradiction. contradiction.
+    unfold sendReady in p. destruct s in p. contradiction. unfold unwrap. apply (exist _ s0). reflexivity. contradiction. contradiction. contradiction.
+    unfold sendReady in p. destruct s in p. contradiction. unfold unwrap. apply (exist _ s0). reflexivity. contradiction. contradiction. contradiction.
+    unfold sendReady in p. destruct s in p. contradiction. unfold unwrap. apply (exist _ s0). reflexivity. contradiction. contradiction. contradiction.
+    unfold sendReady in p. destruct s in p. contradiction. unfold unwrap. destruct b. apply (exist _ s0). reflexivity. apply (exist _ s1). reflexivity. contradiction. contradiction. contradiction.
 Defined.
 
-Definition send' {A:Type} {pa:A->Prop} (ss:{x:A | pa x}) (s:session) (c:bool) : (sendReady s A) -> 
-  {u:session | u = (unwrap s c)}.
+(** [A] is the message type, [pa] is a predicate on the message representing
+  a precondition as a subset type, [s] is a session, [c] is the input to
+  a [choice] operation. *)
+
+Definition send' {A:Type} {pa:A->Prop} (ss:{x:A | pa x}) (s:session A) : (sendReady s) -> 
+  {u:session A | u = (unwrap s)}.
     refine
       (fun p  =>
       match s with 
-      | sendC _ u => _
-      | receiveC _ u => _
+      | sendC _ _ => _
+      | receiveC _ _ => _
       | epsC => _
-      | offerC _ _ => _
+      | offerC _ _ _ => _
       | choiceC _ _ => _
       end).
-    unfold sendReady in p. destruct s in p. contradiction. unfold unwrap. apply (exist _ epsC). reflexivity. contradiction. contradiction. contradiction.
-    unfold sendReady in p. destruct s in p. contradiction. unfold unwrap. apply (exist _ u). reflexivity. contradiction. contradiction. contradiction.
-    unfold sendReady in p. destruct s in p. contradiction. unfold unwrap. apply (exist _ u). reflexivity. contradiction. contradiction. contradiction.
-    unfold sendReady in p. destruct s in p. contradiction. unfold unwrap. destruct c. apply (exist _ s0). reflexivity. apply (exist _ s1). reflexivity. contradiction. contradiction. contradiction.
-    unfold sendReady in p. destruct s in p. contradiction. unfold unwrap. destruct c. apply (exist _ s0). reflexivity. apply (exist _ s1). reflexivity. contradiction. contradiction. contradiction.
+    unfold sendReady in p. destruct s in p. contradiction. unfold unwrap. apply (exist _ (epsC A)). reflexivity. contradiction. contradiction. contradiction.
+    unfold sendReady in p. destruct s in p. contradiction. unfold unwrap. apply (exist _ s0). reflexivity. contradiction. contradiction. contradiction.
+    unfold sendReady in p. destruct s in p. contradiction. unfold unwrap. apply (exist _ s0). reflexivity. contradiction. contradiction. contradiction.
+    unfold sendReady in p. destruct s in p. contradiction. unfold unwrap. apply (exist _ s0). reflexivity. contradiction. contradiction. contradiction.
+    unfold sendReady in p. destruct s in p. contradiction. unfold unwrap. destruct b. apply (exist _ s0). reflexivity. apply (exist _ s1). reflexivity. contradiction. contradiction. contradiction.
 Defined.
 
 (* TODO:  make the return type a sumor.  The left side returns the current return type: a subset type that represents the "rest" of the protocol.  The right side returns a proof that the input predicate on the (x:A) could not be proven.  Note, this may require putting an additional restriction on the input predicate that it is decidable. *)
-Definition receive {A:Type} (x:A) (s:session) (c:bool) : (receiveReady s A) -> 
-  {u:session | u = (unwrap s c)}.
+Definition receive {A:Type} (x:A) (s:session A) (c:bool) : (receiveReady s) -> 
+  {u:session A | u = (unwrap s)}.
     refine
       (fun p  =>
       match s with 
-      | sendC _ u => _
-      | receiveC _ u => _
+      | sendC _ _ => _
+      | receiveC _ _ => _
       | epsC => _
       | choiceC _ _ => _
-      | offerC _ _ => _
+      | offerC _ _ _ => _
       end).
-    unfold receiveReady in p. destruct s in p. contradiction. contradiction. unfold unwrap. apply (exist _ epsC). reflexivity. contradiction. contradiction.
-    unfold receiveReady in p. destruct s in p. contradiction. contradiction. unfold unwrap. apply (exist _ u). reflexivity. contradiction. contradiction.
-    unfold receiveReady in p. destruct s in p. contradiction. contradiction. unfold unwrap. apply (exist _ u). reflexivity. contradiction. contradiction.
-    unfold sendReady in p. destruct s in p. contradiction. unfold unwrap. destruct c. apply (exist _ s0). reflexivity. apply (exist _ s1). reflexivity. destruct c. unfold unwrap. apply (exist _  s0). reflexivity. unfold unwrap. apply (exist _ s1). reflexivity. destruct c. unfold unwrap. apply (exist _  s0). reflexivity. unfold unwrap. apply (exist _ s1). reflexivity. destruct c. unfold unwrap. apply (exist _  s0). reflexivity. unfold unwrap. apply (exist _ s1). reflexivity.
-    unfold sendReady in p. destruct s in p. contradiction. unfold unwrap. destruct c. apply (exist _ s0). reflexivity. apply (exist _ s1). reflexivity. destruct c. unfold unwrap. apply (exist _  s0). reflexivity. unfold unwrap. apply (exist _ s1). reflexivity. destruct c. unfold unwrap. apply (exist _  s0). reflexivity. unfold unwrap. apply (exist _ s1). reflexivity. destruct c. unfold unwrap. apply (exist _  s0). reflexivity. unfold unwrap. apply (exist _ s1). reflexivity.
+    unfold receiveReady in p. destruct s in p. contradiction. contradiction. unfold unwrap. apply (exist _ (epsC A)). reflexivity. contradiction. contradiction.
+    unfold receiveReady in p. destruct s in p. contradiction. contradiction. unfold unwrap. apply (exist _ s0). reflexivity. contradiction. contradiction.
+    unfold receiveReady in p. destruct s in p. contradiction. contradiction. unfold unwrap. apply (exist _ s0). reflexivity. contradiction. contradiction.
+    unfold sendReady in p. destruct s in p. contradiction. unfold unwrap. apply (exist _ s0). reflexivity.  unfold unwrap. apply (exist _  s0). reflexivity. unfold unwrap. apply (exist _ s0). reflexivity. unfold unwrap. apply (exist _  s0). reflexivity. unfold unwrap.  destruct b. apply (exist _  s0). reflexivity. apply (exist _ s1). reflexivity.
 Defined.
 
-Definition proto2 := sendC bool (sendC nat epsC).
+Definition proto2 := sendC nat 3 (sendC nat 3 (epsC nat)).
 Print proto2.
 
-Example sendReady2 : sendReady proto2 bool. reflexivity. Qed.
+Example sendReady2 : sendReady proto2. reflexivity. Qed.
 
-Eval compute in ((send true proto2) true sendReady2).
-Eval compute in ((send true proto2) false sendReady2).
+Eval compute in (send 3 proto2).
 Eval compute in unwrap proto2.
+Print proto2.
 
 Definition proto1 := unwrap proto2.
 Eval compute in proto1.
 
-Example sendReady1 : sendReady (proto1 true) nat. reflexivity. Qed.
+Example sendReady1 : sendReady (proto1). reflexivity. Qed.
 
-Eval compute in ((send 1 (proto1 true)) true sendReady1).
-Eval compute in unwrap (proto1 false).
+Eval compute in ((send 1 (proto1)) sendReady1).
+Eval compute in unwrap (proto1).
 
-Inductive Dual : session -> session -> Prop :=
-| dualEps : Dual epsC epsC
-| senRec : forall A r s, Dual r s -> Dual (sendC A r) (receiveC A s)
-| recSen : forall A r s, Dual r s -> Dual (receiveC A s) (sendC A r).
-
-Definition proto3 := receiveC bool (receiveC nat epsC).
-Print proto3.
+Inductive Dual: forall A:Type, session A -> session A -> Prop :=
+| dualEps : forall A, Dual A (epsC A) (epsC A)
+| senRec : forall A r s x, Dual A s r -> Dual A (sendC A x s) (receiveC A x r)
+| recSen : forall A r s x, Dual A s r -> Dual A (receiveC A x r) (sendC A x s)
+| chOff : forall A b l r t, Dual A r t -> Dual A l t -> Dual A (choiceC A b t) (offerC A b l r)
+| offCh : forall A b l r t, Dual A r t -> Dual A l t -> Dual A (offerC A b l r) (choiceC A b t).
 
 Hint Constructors Dual.
-Example dualExample : Dual proto2 proto3. unfold proto2. unfold proto3. auto. Qed.
 
-Example receiveReady3 : receiveReady proto3 bool. reflexivity. Qed.
+Definition proto3 := receiveC nat 3 (receiveC nat 3 (epsC nat)).
+Print proto3.
 
-Eval compute in proj1_sig ((receive true proto3) receiveReady3).
+Example dualExample : Dual nat proto2 proto3. unfold proto2. unfold proto3. auto. Qed.
+
+Example receiveReady3 : receiveReady proto3. reflexivity. Qed.
+
+Eval compute in proj1_sig ((receive 3 proto3) true receiveReady3).
 (*Eval compute in unwrap proto3. *)
 
 Definition proto4 := unwrap proto3.
 Eval compute in proto4.
 
-Example receiveReady4 : receiveReady proto4 nat. reflexivity. Qed.
+Example receiveReady4 : receiveReady proto4. reflexivity. Qed.
 
-Eval compute in ((receive 1 proto4) receiveReady4).
+Eval compute in ((receive 1 proto4) true receiveReady4).
 Eval compute in unwrap proto4.
 
 
-Definition proto2' := sendC bool (sendC nat epsC).
+Definition proto2' := sendC nat 3 (sendC nat 3 (epsC nat)).
 Print proto2'.
 
-Example sendReady2' : sendReady proto2' bool. reflexivity. Qed.
+Example sendReady2' : sendReady proto2'. reflexivity. Qed.
 
-Definition proto2'Pred := (fun (x:bool) => True).
-Example proto2'PredProof : (proto2'Pred true). reflexivity. Qed.
+Definition proto2'Pred := (fun (x:nat) => True).
+Example proto2'PredProof : (proto2'Pred 3). reflexivity. Qed.
 
-Eval compute in send' (exist proto2'Pred true proto2'PredProof) proto2 sendReady2'.
+Eval compute in send' (exist proto2'Pred 3 proto2'PredProof) proto2 sendReady2'.
 Eval compute in unwrap proto2.
   
 End try6.
