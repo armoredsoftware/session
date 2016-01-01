@@ -300,31 +300,33 @@ Module try6.
 
 (** Note that [B] really should be infered to allow the use of infix operations
   that just don't work well right now *)
-  
-Inductive session (B:Type) : Type :=
-| epsC : session B
-| sendC : forall (a:B),  session B -> session B
-| receiveC : forall (a:B), session B -> session B
-| choiceC : bool -> session B -> session B
-| offerC : bool -> session B -> session B -> session B.
 
-Notation "x :!: y" := (sendC _ x y)
+Inductive session{B:Type} : Type :=
+| epsC : session
+| sendC : B -> session -> session
+| receiveC : B -> session -> session
+| choiceC : bool -> session -> session
+| offerC : bool -> session -> session -> session.
+
+Notation "x :!: y" := (sendC x y)
                         (at level 50, left associativity).
 
-Notation "x :?: y" := (receiveC _ x y)
+Notation "x :?: y" := (receiveC x y)
                         (at level 50, left associativity).
 
-Notation "x :+: y" := (choiceC _ x y)
+Notation "x :+: y" := (choiceC x y)
                         (at level 50, left associativity).
 
-Notation "x :&: y" := (offerC _ x y)
+Notation "x :&: y" := (offerC x y)
                         (at level 50, left associativity).
 
-Check sendC nat 3 (receiveC nat 3 (epsC nat)).
+Check sendC 3 (receiveC 3 epsC).
 
-Check 3 :!: (4 :?: epsC nat).
+Check 3 :!: (4 :?: epsC).
 
-Definition unwrap {T:Type} (s:session T) : session T :=
+Print list.
+
+Definition unwrap {B:Type} (s:@session B) : session :=
   match s with
   | epsC => s
   | sendC _ s' => s'
@@ -333,7 +335,7 @@ Definition unwrap {T:Type} (s:session T) : session T :=
   | offerC b r s => if (b) then r else s                                  
   end.
 
-Definition sendReady {T:Type} (s:session T) : Prop :=
+Definition sendReady {T:Type} (s:@session T) : Prop :=
   match s with
   | epsC => False
   | sendC T _ => True
@@ -342,7 +344,7 @@ Definition sendReady {T:Type} (s:session T) : Prop :=
   | offerC _ _ _ => False
   end.
 
-Definition receiveReady {A:Type} (s:session A) : Prop :=
+Definition receiveReady {A:Type} (s:@session A) : Prop :=
   match s with
   | epsC => False
   | sendC A _ => False
@@ -351,13 +353,13 @@ Definition receiveReady {A:Type} (s:session A) : Prop :=
   | offerC _ _ _ => False
   end.
 
-Check sendC nat _ (receiveC nat _ (epsC nat)).
+Check sendC 3 (receiveC 3 epsC).
 
-Example sendReady_ex1: (sendReady (sendC nat 3 (receiveC nat 3 (epsC nat)))).
+Example sendReady_ex1: sendReady (3 :!: (3 :?: epsC)).
 reflexivity.
 Qed.
 
-Example sendReady_ex2: ~(sendReady (receiveC nat 3 (epsC nat))).
+Example sendReady_ex2: ~(sendReady (3 :?: epsC)).
 unfold not. intros. inversion H. Qed.
 
 Definition trans (A:Type) (B:Type) := A -> B.
@@ -367,8 +369,8 @@ Definition transEx : trans nat bool := (fun (x:nat) => true).
   [s] is [sendReady] with respect to some type [A].  Choking right now
   on boolean argument to [choice]/[offer] that is input to [unwrap] *)
 
-Definition send {A:Type} (x:A) (s:session A) : (sendReady s) -> 
-  {u:session A | u = (unwrap s)}.
+Definition send {A:Type} (x:A) (s:@session A) : (sendReady s) -> 
+  {u:@session A | u = (unwrap s)}.
     refine
       (fun p  =>
       match s with 
@@ -378,7 +380,7 @@ Definition send {A:Type} (x:A) (s:session A) : (sendReady s) ->
       | choiceC _ _ => _
       | offerC _ _ _ => _
       end).
-    unfold sendReady in p. destruct s in p. contradiction. unfold unwrap. apply (exist _ (epsC A)). reflexivity. contradiction. contradiction. contradiction.
+    unfold sendReady in p. destruct s in p. contradiction. unfold unwrap. apply (exist _ epsC). reflexivity. contradiction. contradiction. contradiction.
     unfold sendReady in p. destruct s in p. contradiction. unfold unwrap. apply (exist _ s0). reflexivity. contradiction. contradiction. contradiction.
     unfold sendReady in p. destruct s in p. contradiction. unfold unwrap. apply (exist _ s0). reflexivity. contradiction. contradiction. contradiction.
     unfold sendReady in p. destruct s in p. contradiction. unfold unwrap. apply (exist _ s0). reflexivity. contradiction. contradiction. contradiction.
@@ -389,8 +391,8 @@ Defined.
   a precondition as a subset type, [s] is a session, [c] is the input to
   a [choice] operation. *)
 
-Definition send' {A:Type} {pa:A->Prop} (ss:{x:A | pa x}) (s:session A) : (sendReady s) -> 
-  {u:session A | u = (unwrap s)}.
+Definition send' {A:Type} {pa:A->Prop} (ss:{x:A | pa x}) (s:@session A) : (sendReady s) -> 
+  {u:@session A | u = (unwrap s)}.
     refine
       (fun p  =>
       match s with 
@@ -400,7 +402,7 @@ Definition send' {A:Type} {pa:A->Prop} (ss:{x:A | pa x}) (s:session A) : (sendRe
       | offerC _ _ _ => _
       | choiceC _ _ => _
       end).
-    unfold sendReady in p. destruct s in p. contradiction. unfold unwrap. apply (exist _ (epsC A)). reflexivity. contradiction. contradiction. contradiction.
+    unfold sendReady in p. destruct s in p. contradiction. unfold unwrap. apply (exist _ epsC). reflexivity. contradiction. contradiction. contradiction.
     unfold sendReady in p. destruct s in p. contradiction. unfold unwrap. apply (exist _ s0). reflexivity. contradiction. contradiction. contradiction.
     unfold sendReady in p. destruct s in p. contradiction. unfold unwrap. apply (exist _ s0). reflexivity. contradiction. contradiction. contradiction.
     unfold sendReady in p. destruct s in p. contradiction. unfold unwrap. apply (exist _ s0). reflexivity. contradiction. contradiction. contradiction.
@@ -408,8 +410,8 @@ Definition send' {A:Type} {pa:A->Prop} (ss:{x:A | pa x}) (s:session A) : (sendRe
 Defined.
 
 (* TODO:  make the return type a sumor.  The left side returns the current return type: a subset type that represents the "rest" of the protocol.  The right side returns a proof that the input predicate on the (x:A) could not be proven.  Note, this may require putting an additional restriction on the input predicate that it is decidable. *)
-Definition receive {A:Type} (x:A) (s:session A) (c:bool) : (receiveReady s) -> 
-  {u:session A | u = (unwrap s)}.
+Definition receive {A:Type} (x:A) (s:@session A) (c:bool) : (receiveReady s) -> 
+  {u:@session A | u = (unwrap s)}.
     refine
       (fun p  =>
       match s with 
@@ -419,13 +421,13 @@ Definition receive {A:Type} (x:A) (s:session A) (c:bool) : (receiveReady s) ->
       | choiceC _ _ => _
       | offerC _ _ _ => _
       end).
-    unfold receiveReady in p. destruct s in p. contradiction. contradiction. unfold unwrap. apply (exist _ (epsC A)). reflexivity. contradiction. contradiction.
+    unfold receiveReady in p. destruct s in p. contradiction. contradiction. unfold unwrap. apply (exist _ epsC). reflexivity. contradiction. contradiction.
     unfold receiveReady in p. destruct s in p. contradiction. contradiction. unfold unwrap. apply (exist _ s0). reflexivity. contradiction. contradiction.
     unfold receiveReady in p. destruct s in p. contradiction. contradiction. unfold unwrap. apply (exist _ s0). reflexivity. contradiction. contradiction.
     unfold sendReady in p. destruct s in p. contradiction. unfold unwrap. apply (exist _ s0). reflexivity.  unfold unwrap. apply (exist _  s0). reflexivity. unfold unwrap. apply (exist _ s0). reflexivity. unfold unwrap. apply (exist _  s0). reflexivity. unfold unwrap.  destruct b. apply (exist _  s0). reflexivity. apply (exist _ s1). reflexivity.
 Defined.
 
-Definition proto2 := sendC nat 3 (sendC nat 3 (epsC nat)).
+Definition proto2 := sendC 3 (sendC 3 epsC).
 Print proto2.
 
 Example sendReady2 : sendReady proto2. reflexivity. Qed.
@@ -442,19 +444,19 @@ Example sendReady1 : sendReady (proto1). reflexivity. Qed.
 Eval compute in ((send 1 (proto1)) sendReady1).
 Eval compute in unwrap (proto1).
 
-Inductive Dual: forall A:Type, session A -> session A -> Prop :=
-| dualEps : forall A, Dual A (epsC A) (epsC A)
-| senRec : forall A r s x, Dual A s r -> Dual A (sendC A x s) (receiveC A x r)
-| recSen : forall A r s x, Dual A s r -> Dual A (receiveC A x r) (sendC A x s)
-| chOff : forall A b l r t, Dual A r t -> Dual A l t -> Dual A (choiceC A b t) (offerC A b l r)
-| offCh : forall A b l r t, Dual A r t -> Dual A l t -> Dual A (offerC A b l r) (choiceC A b t).
+Inductive Dual{A:Type}:  @session A -> @session A -> Prop :=
+| dualEps : Dual epsC epsC
+| senRec : forall r s x, Dual s r -> Dual (sendC x s) (receiveC x r)
+| recSen : forall r s x, Dual s r -> Dual (receiveC x r) (sendC x s)
+| chOff : forall b l r t, Dual r t -> Dual l t -> Dual (choiceC b t) (offerC b l r)
+| offCh : forall b l r t, Dual r t -> Dual l t -> Dual (offerC b l r) (choiceC b t).
 
 Hint Constructors Dual.
 
-Definition proto3 := receiveC nat 3 (receiveC nat 3 (epsC nat)).
+Definition proto3 := receiveC 3 (receiveC 3 epsC).
 Print proto3.
 
-Example dualExample : Dual nat proto2 proto3. unfold proto2. unfold proto3. auto. Qed.
+Example dualExample : Dual proto2 proto3. unfold proto2. unfold proto3. auto. Qed.
 
 Example receiveReady3 : receiveReady proto3. reflexivity. Qed.
 
@@ -470,7 +472,7 @@ Eval compute in ((receive 1 proto4) true receiveReady4).
 Eval compute in unwrap proto4.
 
 
-Definition proto2' := sendC nat 3 (sendC nat 3 (epsC nat)).
+Definition proto2' := sendC 3 (sendC 3 epsC).
 Print proto2'.
 
 Example sendReady2' : sendReady proto2'. reflexivity. Qed.
@@ -480,6 +482,34 @@ Example proto2'PredProof : (proto2'Pred 3). reflexivity. Qed.
 
 Eval compute in send' (exist proto2'Pred 3 proto2'PredProof) proto2 sendReady2'.
 Eval compute in unwrap proto2.
-  
+
+(** Some remaining things:
+
+- Integrate the [message] type from Crypto.v.
+- Define a [run] operation over two values of the same session type that
+  are also duals.
+- Make the result of running a [sumor] or [sumbool] to allow for errors and
+  capture of intermediate results using monadic constructs like [maybe]. *)
+
+(** If one protocol is the dual of another, then they should be composable. *)
+
+(** Can we capture the type of the protocol result from the session type? *)
+
+(** Right now the session type is [session] and values of type [session] are
+  traces.  [sendC] and [receiveC] are instantiated with values not types.
+  Can we make [session] a type family where instances of [session] are 
+  types?  Then define structures of that type called [trace]?  Maybe
+  [protocol] should be the type family and [session] remain what it is. *)
+
+(** Can we automatically synthesize a decision procedure to determine if a
+  [session]: (i) ran properly; and (ii) generated the right value.  Ran
+  properly is a property of crypto signatures while generated the right
+  value is a property of the generated values.
+
+  For example, a quote [<n,PCR>k-1] ran right if [n] is the correct nonce and
+  the signature is correct.  The system is configured properly if [PCR] has
+  the right value. Can those decision procedures be synthesized from the
+  type? *)
+
 End try6.
 
