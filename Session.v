@@ -1,5 +1,6 @@
 Require Export SfLib.
 Require Import Maybe.
+Require Export Crypto.
 
 Module try1.
 
@@ -301,10 +302,10 @@ Module try6.
 (** Note that [B] really should be infered to allow the use of infix operations
   that just don't work well right now *)
 
-Inductive session{B:Type} : Type :=
+Inductive session : Type :=
 | epsC : session
-| sendC : B -> session -> session
-| receiveC : B -> session -> session
+| sendC : message -> session -> session
+| receiveC : message -> session -> session
 | choiceC : bool -> session -> session
 | offerC : bool -> session -> session -> session.
 
@@ -320,13 +321,11 @@ Notation "x :+: y" := (choiceC x y)
 Notation "x :&: y" := (offerC x y)
                         (at level 50, left associativity).
 
-Check sendC 3 (receiveC 3 epsC).
+Check sendC (basic 3) (receiveC (basic 3) epsC).
 
-Check 3 :!: (4 :?: epsC).
+Check (basic 3) :!: ((basic 4) :?: epsC).
 
-Print list.
-
-Definition unwrap {B:Type} (s:@session B) : session :=
+Definition unwrap(s:session) : session :=
   match s with
   | epsC => s
   | sendC _ s' => s'
@@ -335,16 +334,16 @@ Definition unwrap {B:Type} (s:@session B) : session :=
   | offerC b r s => if (b) then r else s                                  
   end.
 
-Definition sendReady {T:Type} (s:@session T) : Prop :=
+Definition sendReady(s:session) : Prop :=
   match s with
   | epsC => False
-  | sendC T _ => True
+  | sendC _ _ => True
   | receiveC _ _ => False
   | choiceC _ _ => False
   | offerC _ _ _ => False
   end.
 
-Definition receiveReady {A:Type} (s:@session A) : Prop :=
+Definition receiveReady(s:session) : Prop :=
   match s with
   | epsC => False
   | sendC A _ => False
@@ -353,24 +352,21 @@ Definition receiveReady {A:Type} (s:@session A) : Prop :=
   | offerC _ _ _ => False
   end.
 
-Check sendC 3 (receiveC 3 epsC).
+Check sendC (basic 3) (receiveC (basic 3) epsC).
 
-Example sendReady_ex1: sendReady (3 :!: (3 :?: epsC)).
+Example sendReady_ex1: sendReady ((basic 3) :!: ((basic 3) :?: epsC)).
 reflexivity.
 Qed.
 
-Example sendReady_ex2: ~(sendReady (3 :?: epsC)).
+Example sendReady_ex2: ~(sendReady ((basic 3) :?: epsC)).
 unfold not. intros. inversion H. Qed.
-
-Definition trans (A:Type) (B:Type) := A -> B.
-Definition transEx : trans nat bool := (fun (x:nat) => true).
 
 (** [send] returns a new session resulting from one unwrap of [s] if
   [s] is [sendReady] with respect to some type [A].  Choking right now
   on boolean argument to [choice]/[offer] that is input to [unwrap] *)
 
-Definition send {A:Type} (x:A) (s:@session A) : (sendReady s) -> 
-  {u:@session A | u = (unwrap s)}.
+Definition send (x:message) (s:session) : (sendReady s) -> 
+  {u:session | u = (unwrap s)}.
     refine
       (fun p  =>
       match s with 
@@ -391,8 +387,8 @@ Defined.
   a precondition as a subset type, [s] is a session, [c] is the input to
   a [choice] operation. *)
 
-Definition send' {A:Type} {pa:A->Prop} (ss:{x:A | pa x}) (s:@session A) : (sendReady s) -> 
-  {u:@session A | u = (unwrap s)}.
+Definition send' {pa:message->Prop} (ss:{x:message | pa x}) (s:session) : (sendReady s) -> 
+  {u:session | u = (unwrap s)}.
     refine
       (fun p  =>
       match s with 
@@ -410,8 +406,8 @@ Definition send' {A:Type} {pa:A->Prop} (ss:{x:A | pa x}) (s:@session A) : (sendR
 Defined.
 
 (* TODO:  make the return type a sumor.  The left side returns the current return type: a subset type that represents the "rest" of the protocol.  The right side returns a proof that the input predicate on the (x:A) could not be proven.  Note, this may require putting an additional restriction on the input predicate that it is decidable. *)
-Definition receive {A:Type} (x:A) (s:@session A) (c:bool) : (receiveReady s) -> 
-  {u:@session A | u = (unwrap s)}.
+Definition receive (x:message) (s:session) (c:bool) : (receiveReady s) -> 
+  {u:session | u = (unwrap s)}.
     refine
       (fun p  =>
       match s with 
@@ -427,12 +423,12 @@ Definition receive {A:Type} (x:A) (s:@session A) (c:bool) : (receiveReady s) ->
     unfold sendReady in p. destruct s in p. contradiction. unfold unwrap. apply (exist _ s0). reflexivity.  unfold unwrap. apply (exist _  s0). reflexivity. unfold unwrap. apply (exist _ s0). reflexivity. unfold unwrap. apply (exist _  s0). reflexivity. unfold unwrap.  destruct b. apply (exist _  s0). reflexivity. apply (exist _ s1). reflexivity.
 Defined.
 
-Definition proto2 := sendC 3 (sendC 3 epsC).
+Definition proto2 := sendC (basic 3) (sendC (basic 3) epsC).
 Print proto2.
 
 Example sendReady2 : sendReady proto2. reflexivity. Qed.
 
-Eval compute in ((send 3 proto2) sendReady2).
+Eval compute in ((send (basic 3) proto2) sendReady2).
 Eval compute in unwrap proto2.
 Print proto2.
 
@@ -441,10 +437,10 @@ Eval compute in proto1.
 
 Example sendReady1 : sendReady (proto1). reflexivity. Qed.
 
-Eval compute in ((send 1 (proto1)) sendReady1).
+Eval compute in ((send (basic 1) (proto1)) sendReady1).
 Eval compute in unwrap (proto1).
 
-Inductive Dual{A:Type}:  @session A -> @session A -> Prop :=
+Inductive Dual:session -> session -> Prop :=
 | dualEps : Dual epsC epsC
 | senRec : forall r s x, Dual s r -> Dual (sendC x s) (receiveC x r)
 | recSen : forall r s x, Dual s r -> Dual (receiveC x r) (sendC x s)
@@ -453,14 +449,14 @@ Inductive Dual{A:Type}:  @session A -> @session A -> Prop :=
 
 Hint Constructors Dual.
 
-Definition proto3 := receiveC 3 (receiveC 3 epsC).
+Definition proto3 := receiveC (basic 3) (receiveC (basic 3) epsC).
 Print proto3.
 
 Example dualExample : Dual proto2 proto3. unfold proto2. unfold proto3. auto. Qed.
 
 Example receiveReady3 : receiveReady proto3. reflexivity. Qed.
 
-Eval compute in proj1_sig ((receive 3 proto3) true receiveReady3).
+Eval compute in proj1_sig ((receive (basic 3) proto3) true receiveReady3).
 (*Eval compute in unwrap proto3. *)
 
 Definition proto4 := unwrap proto3.
@@ -468,19 +464,19 @@ Eval compute in proto4.
 
 Example receiveReady4 : receiveReady proto4. reflexivity. Qed.
 
-Eval compute in ((receive 1 proto4) true receiveReady4).
+Eval compute in ((receive (basic 1) proto4) true receiveReady4).
 Eval compute in unwrap proto4.
 
 
-Definition proto2' := sendC 3 (sendC 3 epsC).
+Definition proto2' := sendC (basic 3) (sendC (basic 3) epsC).
 Print proto2'.
 
 Example sendReady2' : sendReady proto2'. reflexivity. Qed.
 
-Definition proto2'Pred := (fun (x:nat) => True).
-Example proto2'PredProof : (proto2'Pred 3). reflexivity. Qed.
+Definition proto2'Pred := (fun (x:message) => True).
+Example proto2'PredProof : (proto2'Pred (basic 3)). reflexivity. Qed.
 
-Eval compute in send' (exist proto2'Pred 3 proto2'PredProof) proto2 sendReady2'.
+Eval compute in send' (exist proto2'Pred (basic 3) proto2'PredProof) proto2 sendReady2'.
 Eval compute in unwrap proto2.
 
 (** Some remaining things:
@@ -510,6 +506,42 @@ Eval compute in unwrap proto2.
   the signature is correct.  The system is configured properly if [PCR] has
   the right value. Can those decision procedures be synthesized from the
   type? *)
+
+Notation "!!" := (inright _ _).
+Notation "[|| x ||]" := (inleft _ x).
+
+Notation "x <-- e1 ; e2" := (match e1 with
+                             | inleft x => e2
+                             | inright _ => !!
+                             end)
+                              (right associativity, at level 60).
+
+Eval compute in (unwrap (unwrap proto3)).
+
+Eval compute in (match (inleft (unwrap proto3)) with inleft z => (inleft (unwrap z)) | !! => (inright I) end).
+
+Check (fun (s:session+{True}) => match s with inleft s' => inleft (unwrap s') | !! => (inright I) end).
+
+Check (fun (s:session+{True}) => match s with inleft s' => inleft (unwrap s') | !! => s end).
+
+Definition unwrap'(s:(session+{True})) :=
+  match s with
+  | inleft s' => inleft (unwrap s')
+  | !! => s
+  end.
+
+Check unwrap'.
+
+Eval compute in (unwrap' (inleft proto3)).
+
+Eval compute in (unwrap' (unwrap' (inleft proto3))).
+      
+Definition seq:(session+{True})->(session+{True}).
+                               refine (fun s => (x <-- (unwrap' s) ; (unwrap' [||x||]))).
+                               reflexivity.
+                               Defined.
+
+Eval compute in seq([||proto3||]).
 
 End try6.
 
