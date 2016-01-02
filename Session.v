@@ -481,7 +481,7 @@ Eval compute in unwrap proto2.
 
 (** Some remaining things:
 
-- Integrate the [message] type from Crypto.v.
++ Integrate the [message] type from Crypto.v.
 - Define a [run] operation over two values of the same session type that
   are also duals.
 - Make the result of running a [sumor] or [sumbool] to allow for errors and
