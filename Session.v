@@ -442,12 +442,72 @@ Eval compute in unwrap (proto1).
 
 Inductive Dual:session -> session -> Prop :=
 | dualEps : Dual epsC epsC
-| senRec : forall r s x, Dual s r -> Dual (sendC x s) (receiveC x r)
-| recSen : forall r s x, Dual s r -> Dual (receiveC x r) (sendC x s)
+| senRec : forall r s x, Dual s r -> Dual (x :!: s) (x :?: r)
+| recSen : forall r s x, Dual s r -> Dual (x :?: s) (x :!: r)
 | chOff : forall b l r t, Dual r t -> Dual l t -> Dual (choiceC b t) (offerC b l r)
 | offCh : forall b l r t, Dual r t -> Dual l t -> Dual (offerC b l r) (choiceC b t).
 
 Hint Constructors Dual.
+
+Definition dual_dec: forall s s', {Dual s s'}+{not (Dual s s')}.
+Proof.
+  intros.
+  induction s; induction s'.
+  left; auto.
+  right; unfold not; intros; inversion H.
+  right; unfold not; intros; inversion H.
+  right; unfold not; intros; inversion H.
+  right; unfold not; intros; inversion H.
+  right; unfold not; intros; inversion H.
+  right; unfold not; intros; inversion H.
+  destruct (message_eq_dec m m0); subst.
+    [ destruct IHs;
+      [
+        left; auto
+      | right; unfold not; intros; inversion H; subst; contradiction
+      ].
+    | destruct IHs;
+      [ right; unfold not; intros; inversion H;  contradiction
+      | right; unfold not; intros; inversion H; contradiction ]
+    ].
+
+  match goal with
+  | [ |- {Dual epsC epsC}+{not (Dual epsC epsC)} ] => left; auto
+  | [ |- {Dual (?M :!: ?S) (?M' :?: ?S')}+{not (Dual (?M :!: ?S) (?M' :?: ?S'))} ] => simpl
+  | [ |- {Dual (?M :?: ?S) (?M' :!: ?S')}+{not (Dual (?M :?: ?S) (?M' :!: ?S'))} ] =>
+    specialize IHs with s'; destruct (message_eq_dec m m0); subst;
+    [ destruct IHs;
+      [ left; auto
+      | right; unfold not; intros; inversion H; subst; contradiction ]
+    | destruct IHs;
+      [ right; unfold not; intros; inversion H;  contradiction
+      | right; unfold not; intros; inversion H; contradiction ]
+    ]
+  | [ |- _ ] => right; unfold not; intros; inversion H
+  end.
+  specialize IHs with s'. destruct (message_eq_dec m m0). subst. destruct IHs. left. auto. right. unfold not. intros. inversion H. subst. contradiction. destruct IHs. right. unfold not. intros. inversion H. contradiction. right. unfold not. intros. inversion H. contradiction.
+  right; unfold not; intros; inversion H.
+  right; unfold not; intros; inversion H.
+  right; unfold not; intros; inversion H.
+  specialize IHs with s'. destruct (message_eq_dec m m0). subst. destruct IHs. left. auto. right. unfold not. intros. inversion H. subst. contradiction. destruct IHs. right. unfold not. intros. inversion H. contradiction. right. unfold not. intros. inversion H. contradiction.
+  right; unfold not; intros; inversion H.
+  right; unfold not; intros; inversion H.
+  right; unfold not; intros; inversion H.
+  right; unfold not; intros; inversion H.
+  right; unfold not; intros; inversion H.
+  right; unfold not; intros; inversion H.
+  right; unfold not; intros; inversion H.
+  
+
+
+
+
+  | [ |- (Dual epsC epsC) ] => (left; auto)
+  match goal with
+  | [ |- _ ] => right; unfold not; intros; inversion H
+  end.
+
+
 
 Definition proto3 := receiveC (basic 3) (receiveC (basic 3) epsC).
 Print proto3.
@@ -544,4 +604,5 @@ Definition seq:(session+{True})->(session+{True}).
 Eval compute in seq([||proto3||]).
 
 End try6.
+
 
