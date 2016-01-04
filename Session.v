@@ -449,66 +449,6 @@ Inductive Dual:session -> session -> Prop :=
 
 Hint Constructors Dual.
 
-Definition dual_dec: forall s s', {Dual s s'}+{not (Dual s s')}.
-Proof.
-  intros.
-  induction s; induction s'.
-  left; auto.
-  right; unfold not; intros; inversion H.
-  right; unfold not; intros; inversion H.
-  right; unfold not; intros; inversion H.
-  right; unfold not; intros; inversion H.
-  right; unfold not; intros; inversion H.
-  right; unfold not; intros; inversion H.
-  destruct (message_eq_dec m m0); subst.
-    [ destruct IHs;
-      [
-        left; auto
-      | right; unfold not; intros; inversion H; subst; contradiction
-      ].
-    | destruct IHs;
-      [ right; unfold not; intros; inversion H;  contradiction
-      | right; unfold not; intros; inversion H; contradiction ]
-    ].
-
-  match goal with
-  | [ |- {Dual epsC epsC}+{not (Dual epsC epsC)} ] => left; auto
-  | [ |- {Dual (?M :!: ?S) (?M' :?: ?S')}+{not (Dual (?M :!: ?S) (?M' :?: ?S'))} ] => simpl
-  | [ |- {Dual (?M :?: ?S) (?M' :!: ?S')}+{not (Dual (?M :?: ?S) (?M' :!: ?S'))} ] =>
-    specialize IHs with s'; destruct (message_eq_dec m m0); subst;
-    [ destruct IHs;
-      [ left; auto
-      | right; unfold not; intros; inversion H; subst; contradiction ]
-    | destruct IHs;
-      [ right; unfold not; intros; inversion H;  contradiction
-      | right; unfold not; intros; inversion H; contradiction ]
-    ]
-  | [ |- _ ] => right; unfold not; intros; inversion H
-  end.
-  specialize IHs with s'. destruct (message_eq_dec m m0). subst. destruct IHs. left. auto. right. unfold not. intros. inversion H. subst. contradiction. destruct IHs. right. unfold not. intros. inversion H. contradiction. right. unfold not. intros. inversion H. contradiction.
-  right; unfold not; intros; inversion H.
-  right; unfold not; intros; inversion H.
-  right; unfold not; intros; inversion H.
-  specialize IHs with s'. destruct (message_eq_dec m m0). subst. destruct IHs. left. auto. right. unfold not. intros. inversion H. subst. contradiction. destruct IHs. right. unfold not. intros. inversion H. contradiction. right. unfold not. intros. inversion H. contradiction.
-  right; unfold not; intros; inversion H.
-  right; unfold not; intros; inversion H.
-  right; unfold not; intros; inversion H.
-  right; unfold not; intros; inversion H.
-  right; unfold not; intros; inversion H.
-  right; unfold not; intros; inversion H.
-  right; unfold not; intros; inversion H.
-  
-
-
-
-
-  | [ |- (Dual epsC epsC) ] => (left; auto)
-  match goal with
-  | [ |- _ ] => right; unfold not; intros; inversion H
-  end.
-
-
-
 Definition proto3 := receiveC (basic 3) (receiveC (basic 3) epsC).
 Print proto3.
 
@@ -602,6 +542,23 @@ Definition seq:(session+{True})->(session+{True}).
                                Defined.
 
 Eval compute in seq([||proto3||]).
+
+(** First case works.  Second two cases match, but don't have complete
+  proofs.  Final two cases are not matching *)
+
+Definition dual_dec: forall s s', {Dual s s'}+{not (Dual s s')}.
+Proof.
+  intros s s'.
+  induction s; induction s';
+  match goal with
+  | [ |- {Dual epsC epsC}+{not (Dual epsC epsC)} ] => left; auto
+  | [ |- {Dual (?M :!: ?S) (?M' :?: ?S')}+{not (Dual (?M :!: ?S) (?M' :?: ?S'))} ] => simpl
+  | [ |- {Dual (?M :?: ?S) (?M' :!: ?S')}+{not (Dual (?M :?: ?S) (?M' :!: ?S'))} ] => simpl
+  | [ |- {Dual (?R :+: ?T) (?S :&: ?U)}+{~(Dual (?R :+: ?T) (?S :&: ?U))} ] => simpl
+  | [ |- {Dual (?S :&: ?U) (?R :+: ?T)}+{~(Dual (?S :&: ?U) (?R :+: ?T))} ] => simpl
+  | [ |- _ ] => right; unfold not; intros; inversion H
+  end.
+  Admitted.
 
 End try6.
 
