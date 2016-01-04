@@ -463,11 +463,45 @@ Inductive protoType : Type :=
 | Send : forall (A:Type), protoType -> protoType
 | Receive : forall (A:Type), protoType -> protoType
 | Var : nat -> protoType  (* should index be in the type? *)               
-| Trans : forall (A:Type) (B:Type), protoType.                            
+| Trans : forall (A:Type) (B:Type), protoType
+| Eps : protoType.
+
+Inductive DualT : protoType -> protoType -> Prop :=
+| senRec : forall A r s, DualT r s -> DualT (Send A r) (Receive A s)
+| recSen : forall A r s, DualT r s -> DualT (Receive A s) (Send A r)
+| dualEps : DualT Eps Eps.
 
 Inductive protoExp : protoType -> Type :=
-| SendC {A:Type} {p:protoType} : A -> (protoExp (Send A p)) -> protoExp p
-| ReceiveC {A:Type} {p:protoType} {n:nat} : (protoExp (Var n)) -> (protoExp (Receive A p)) -> protoExp p                                                     | TransC {A:Type} {B:Type} : (A -> B) -> protoExp (Trans A B).     
+| SendC {A:Type} {p:protoType} : A -> (protoExp p) -> protoExp (Send A p)
+| ReceiveC (A:Type) {p:protoType} {n:nat} :
+    (protoExp (Var n)) -> (protoExp p) -> protoExp (Receive A p)          
+| VarC (n:nat) :  protoExp (Var n)
+| TransC {A:Type} {B:Type} : (A -> B) -> protoExp (Trans A B)
+| EpsC : protoExp Eps.
+
+Definition Dual {t t': protoType} (r:protoExp t) (s:protoExp t') : Prop :=
+  DualT t t'.
+
+
+Notation "x :!: y" := (protoExp (Send x y))
+                        (at level 50, left associativity).
+
+Notation "x :?: y" := (protoExp (Receive x y))
+                        (at level 50, left associativity).
+
+Definition proto1 := SendC 1 EpsC.
+Eval compute in proto1.
+
+Definition proto2 := ReceiveC nat (VarC 1) EpsC.
+Eval compute in proto2.
+
+Hint Constructors DualT.
+
+Example simpleDual : Dual proto1 proto2.
+Proof. unfold Dual. auto. Qed.
+
+Definition proto3 := SendC 1 proto2.
+Eval compute in proto3.
 
                            
 End try7.
