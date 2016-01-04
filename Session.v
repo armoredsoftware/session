@@ -458,26 +458,33 @@ end)
 End try6.
 
 Module try7.
+(* 
+protoType is the type language for protocols.
 
+Var- Represents a placeholder(natural number-indexed variable) in a protocol.  The idea is that it will bring new things received into scope for the rest of the protocol.
+
+Eps- The empty protocol's type.
+
+TODO: What is the best way to make global data(keys, for example) available to the protocol?  Include an environment structure?
+*)
+  
 Inductive protoType : Type :=
 | Send : forall (A:Type), protoType -> protoType
 | Receive : forall (A:Type), protoType -> protoType
-| Var : nat -> protoType  (* should index be in the type? *)               
-| Trans : forall (A:Type) (B:Type), protoType
+| Var : nat -> protoType  (* TODO:  Does Var belong in protoType?  If not, could it be left external and only referenced as an argument to ReceiveC(below)?. If so, should the natural number index stay in the type? *)               
 | Eps : protoType.
+
+Inductive protoExp : protoType -> Type :=
+| SendC {A:Type} {p:protoType} : A -> (protoExp p) -> protoExp (Send A p)
+| ReceiveC (A:Type) {p:protoType} {n:nat}
+    : (protoExp (Var n)) -> (protoExp p) -> protoExp (Receive A p)          
+| VarC (n:nat) :  protoExp (Var n)
+| EpsC : protoExp Eps.
 
 Inductive DualT : protoType -> protoType -> Prop :=
 | senRec : forall A r s, DualT r s -> DualT (Send A r) (Receive A s)
 | recSen : forall A r s, DualT r s -> DualT (Receive A s) (Send A r)
 | dualEps : DualT Eps Eps.
-
-Inductive protoExp : protoType -> Type :=
-| SendC {A:Type} {p:protoType} : A -> (protoExp p) -> protoExp (Send A p)
-| ReceiveC (A:Type) {p:protoType} {n:nat} :
-    (protoExp (Var n)) -> (protoExp p) -> protoExp (Receive A p)          
-| VarC (n:nat) :  protoExp (Var n)
-| TransC {A:Type} {B:Type} : (A -> B) -> protoExp (Trans A B)
-| EpsC : protoExp Eps.
 
 Definition Dual {t t': protoType} (r:protoExp t) (s:protoExp t') : Prop :=
   DualT t t'.
@@ -503,6 +510,21 @@ Proof. unfold Dual. auto. Qed.
 Definition proto3 := SendC 1 proto2.
 Eval compute in proto3.
 
+
+(* 
+What should a protocol "produce"?(what is the return type of runProto?). 
+-Can we determine what it produces by the session type alone?
+-Is "what a protocol produces" simply what it adds to its environment(new things received)?  Is it a single primitive value?
+-How do we capture not only "what" a protocol produces, but PROPERTIES about what it produces(proofs about message content, execution, etc.)
+-How do we sequence and compose protocols (thread the result of one to the next)?
+ *)
+
+Definition environment := list bool.
+Definition env1 : environment := [true ; false].
+Check env1.
+
+
+Definition runProto{t t' : protoType} (r:protoExp t) (s:protoExp t') (currentEnv : environment) (p:Dual r s) : environment.
                            
 End try7.
 
