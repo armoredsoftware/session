@@ -1,5 +1,5 @@
 Require Export SfLib.
-Require Import Maybe.
+(* Require Import Maybe.*)
 Require Export Crypto.
 
 Module try1.
@@ -576,24 +576,29 @@ TODO: What is the best way to make global data(keys, for example) available to t
 Inductive protoType : Type :=
 | Send : forall (A:Type), protoType -> protoType
 | Receive : forall (A:Type), protoType -> protoType
-| Var : nat -> protoType  (* TODO:  Does Var belong in protoType?  If not, could it be left external and only referenced as an argument to ReceiveC(below)?. If so, should the natural number index stay in the type? *)               
+| Offer : protoType -> protoType -> protoType
+| Choice : protoType -> protoType -> protoType
 | Eps : protoType.
 
 Inductive protoExp : protoType -> Type :=
 | SendC {A:Type} {p:protoType} : A -> (protoExp p) -> protoExp (Send A p)
-| ReceiveC (A:Type) {p:protoType} {n:nat}
-    : (protoExp (Var n)) -> (protoExp p) -> protoExp (Receive A p)          
-| VarC (n:nat) :  protoExp (Var n)
+| ReceiveC {A:Type} {p:protoType}
+  : A -> (protoExp p) -> protoExp (Receive A p)
+| OfferC {p q:protoType} : (protoExp p) -> (protoExp q) -> (protoExp (Offer p q))
+| ChoiceC {p q:protoType} : bool -> (protoExp p) -> (protoExp q) -> (protoExp (Choice p q))
 | EpsC : protoExp Eps.
 
 Inductive DualT : protoType -> protoType -> Prop :=
 | senRec : forall A r s, DualT r s -> DualT (Send A r) (Receive A s)
 | recSen : forall A r s, DualT r s -> DualT (Receive A s) (Send A r)
+| offCho : forall r r' s s', DualT r r' -> DualT s s' -> DualT (Offer r s) (Choice r' s')
+| choOff : forall r r' s s', DualT r r' -> DualT s s' -> DualT (Choice r s) (Offer r' s')
 | dualEps : DualT Eps Eps.
+
+Hint Constructors DualT.
 
 Definition Dual {t t': protoType} (r:protoExp t) (s:protoExp t') : Prop :=
   DualT t t'.
-
 
 Notation "x :!: y" := (protoExp (Send x y))
                         (at level 50, left associativity).
@@ -601,17 +606,38 @@ Notation "x :!: y" := (protoExp (Send x y))
 Notation "x :?: y" := (protoExp (Receive x y))
                         (at level 50, left associativity).
 
-Definition proto1 := SendC 1 EpsC.
+Notation "x :+: y" := (protoExp (Choice x y))
+                        (at level 50, left associativity).
+
+Notation "x :&: y" := (protoExp (Offer x y))
+                        (at level 50, left associativity).
+
+
+Definition proto1 := SendC (basic 1) EpsC.
+Check proto1.
 Eval compute in proto1.
 
-Definition proto2 := ReceiveC nat (VarC 1) EpsC.
+Definition proto2 := ReceiveC (basic 1) EpsC.
+Check proto2.
 Eval compute in proto2.
 
-Hint Constructors DualT.
+Definition proto1' := SendC (basic 1) EpsC.
+Eval compute in proto1'.
+
+Definition proto2' := ReceiveC (basic 1) EpsC.
+Eval compute in proto2'.
 
 Example simpleDual : Dual proto1 proto2.
-Proof. unfold Dual. auto. Qed.
+Proof. unfold Dual. auto.
 
+Theorem dual_dec: forall p p', {DualT p p'}+{not (DualT p p')}.
+Proof.
+  intros. induction p,p'.
+  right. unfold not. intros. inversion H.
+  left. apply senRec.
+  
+
+  
 Definition proto3 := SendC 1 proto2.
 Eval compute in proto3.
 
