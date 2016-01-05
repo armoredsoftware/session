@@ -621,26 +621,24 @@ Definition proto2 := ReceiveC (basic 1) EpsC.
 Check proto2.
 Eval compute in proto2.
 
-Definition proto1' := SendC (basic 1) EpsC.
+Definition proto1' := OfferC proto1 EpsC.
 Eval compute in proto1'.
 
-Definition proto2' := ReceiveC (basic 1) EpsC.
+Definition proto2' := ChoiceC true proto2 EpsC.
 Eval compute in proto2'.
 
 Example simpleDual : Dual proto1 proto2.
-Proof. unfold Dual. auto.
+Proof. unfold Dual. auto. Qed.
 
-Theorem dual_dec: forall p p', {DualT p p'}+{not (DualT p p')}.
+Example simpldDual' : Dual proto1' proto2'.
+Proof. unfold Dual. auto. Qed.
+
+Theorem dualT_dec: forall p p', {DualT p p'}+{not (DualT p p')}.
 Proof.
-  intros. induction p,p'.
-  right. unfold not. intros. inversion H.
-  left. apply senRec.
-  
+  Admitted.
 
-  
 Definition proto3 := SendC 1 proto2.
 Eval compute in proto3.
-
 
 (* 
 What should a protocol "produce"?(what is the return type of runProto?). 
@@ -656,6 +654,18 @@ Check env1.
 
 
 Definition runProto{t t' : protoType} (r:protoExp t) (s:protoExp t') (currentEnv : environment) (p:Dual r s) : environment.
+                                                                                                                 match r with
+                                                                                                                   | SendC x r =>
+                                                                                                                   | ReceiveC x r =>                                                                                    
                            
+Notation "!!" := (inright _ _).
+Notation "[|| x ||]" := (inleft _ x).
+
+Notation "x <-- e1 ; e2" := (match e1 with
+                             | inleft x => e2
+                             | inright _ => !!
+                             end)
+                              (right associativity, at level 60).
+
 End try7.
 
