@@ -653,12 +653,10 @@ Definition env1 : environment := [true ; false].
 Check env1.
 
 
-Definition runProto{t t' : protoType} (r:protoExp t) (s:protoExp t') (currentEnv : environment) (p:Dual r s) : environment.
-                                                                                                                 match r with
-                                                                                                                   | SendC x r =>
-                                                                                                                   | ReceiveC x r =>                                                                                    
-                           
-Notation "!!" := (inright _ _).
+Definition runProto{t t' : protoType}
+           (r:protoExp t)(s:protoExp t')
+           (currentEnv : environment)(p:Dual r s) : environment.
+
 Notation "[|| x ||]" := (inleft _ x).
 
 Notation "x <-- e1 ; e2" := (match e1 with
