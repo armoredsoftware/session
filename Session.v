@@ -1,4 +1,5 @@
 Require Export SfLib.
+(*Require Export Crypto. *)
 
 Module try1.
 
@@ -458,6 +459,31 @@ end)
 End try6.
 
 Module try7.
+
+Inductive VarT :=
+| VarC : nat -> VarT.
+  
+Definition key_val : Type := nat.
+
+(** Key types are [symmetric], [public] and [private]. *)
+Inductive keyType: Type :=
+| symmetric : key_val -> keyType
+| private : key_val -> keyType
+| public : key_val -> keyType.
+
+(** Basic messages held abstract.  Compound messages are keys, encrypted and
+  signed messages, hashes and pairs. *)
+
+Inductive message : Type :=
+| basic : nat -> message
+| var : nat -> message
+| key : keyType -> message
+| encrypt : message -> keyType -> message
+| sign : message -> keyType -> message
+| hash : message -> message
+| pair : message -> message -> message.
+
+
 (* 
 protoType is the type language for protocols.
 
@@ -471,43 +497,71 @@ TODO: What is the best way to make global data(keys, for example) available to t
 Inductive protoType : Type :=
 | Send : forall (A:Type), protoType -> protoType
 | Receive : forall (A:Type), protoType -> protoType
-| Var : nat -> protoType  (* TODO:  Does Var belong in protoType?  If not, could it be left external and only referenced as an argument to ReceiveC(below)?. If so, should the natural number index stay in the type? *)               
+| Choice : protoType -> protoType -> protoType
+| Offer : protoType -> protoType -> protoType                                  
+(*| Var : nat -> protoType  (* TODO:  Does Var belong in protoType?  If not, could it be left external and only referenced as an argument to ReceiveC(below)?. If so, should the natural number index stay in the type? *)  *)              
 | Eps : protoType.
 
 Inductive protoExp : protoType -> Type :=
-| SendC {A:Type} {p:protoType} : A -> (protoExp p) -> protoExp (Send A p)
-| ReceiveC (A:Type) {p:protoType} {n:nat}
-    : (protoExp (Var n)) -> (protoExp p) -> protoExp (Receive A p)          
-| VarC (n:nat) :  protoExp (Var n)
+| SendC {A:Type} {p:protoType} : message -> (protoExp p) -> protoExp (Send A p)
+| ReceiveC (A:Type) {p:protoType}
+    : VarT -> (protoExp p) -> protoExp (Receive A p)          
+(*| VarC (n:nat) :  protoExp (Var n) *)
+| ChoiceC {r s: protoType}
+  : bool -> (protoExp r) -> (protoExp s) -> (protoExp (Choice r s))
+| OfferC {r s : protoType}
+  : (protoExp r) -> (protoExp s) -> (protoExp (Offer r s))    
 | EpsC : protoExp Eps.
 
 Inductive DualT : protoType -> protoType -> Prop :=
 | senRec : forall A r s, DualT r s -> DualT (Send A r) (Receive A s)
 | recSen : forall A r s, DualT r s -> DualT (Receive A s) (Send A r)
+| chOff : forall r s r' s', DualT r r' -> DualT s s' -> DualT (Choice r s) (Offer r' s')
+| offCh : forall r s r' s', DualT r r' -> DualT s s' -> DualT (Offer r' s') (Choice r s)                                                        
 | dualEps : DualT Eps Eps.
 
 Definition Dual {t t': protoType} (r:protoExp t) (s:protoExp t') : Prop :=
   DualT t t'.
 
-
+Notation "x :!: y" := (Send x y)
+                        (at level 50, left associativity).
 Notation "x :!: y" := (protoExp (Send x y))
                         (at level 50, left associativity).
 
+Notation "x :?: y" := (Receive x y)
+                        (at level 50, left associativity).
 Notation "x :?: y" := (protoExp (Receive x y))
                         (at level 50, left associativity).
 
-Definition proto1 := SendC 1 EpsC.
+Notation "x :+: y" := (Choice x y)
+                        (at level 50, left associativity).
+(*Notation "x :+: y" := (protoExp (Choice x y))
+                        (at level 50, left associativity). *)
+
+Notation "x :&: y" := (Offer x y)
+                        (at level 50, left associativity).
+Notation "x :&: y" := (protoExp (Offer x y))
+                        (at level 50, left associativity).
+
+
+Definition proto1 := SendC (A:=nat) (basic 1) EpsC.
 Eval compute in proto1.
 
 Definition proto2 := ReceiveC nat (VarC 1) EpsC.
 Eval compute in proto2.
+
+Definition protoChoiceValue := ChoiceC true proto1 (SendC (A:=nat) (basic 2) EpsC).
+Eval compute in protoChoiceValue.
+
+Definition protoOfferValue := OfferC (ReceiveC nat (VarC 1) EpsC) (ReceiveC bool (VarC 1) EpsC).
+Eval compute in protoOfferValue.
 
 Hint Constructors DualT.
 
 Example simpleDual : Dual proto1 proto2.
 Proof. unfold Dual. auto. Qed.
 
-Definition proto3 := SendC 1 proto2.
+Definition proto3 := SendC (A:=nat) (basic 1) proto2.
 Eval compute in proto3.
 
 
@@ -519,12 +573,124 @@ What should a protocol "produce"?(what is the return type of runProto?).
 -How do we sequence and compose protocols (thread the result of one to the next)?
  *)
 
-Definition environment := list bool.
-Definition env1 : environment := [true ; false].
-Check env1.
 
 
-Definition runProto{t t' : protoType} (r:protoExp t) (s:protoExp t') (currentEnv : environment) (p:Dual r s) : environment.
+Definition var_id : Type := nat.
+Definition env_val : Type := message.
+
+Inductive environment : Type :=
+| empty : environment
+| item : var_id -> env_val -> environment -> environment.
+
+Definition add (id:var_id) (m:env_val) (e:environment) : environment :=
+  item id m e.
+
+Fixpoint delete (id:var_id) (e:environment) : environment :=
+  match e with
+  | empty => empty
+  | item id' m e' => if( beq_nat id id') then (delete id e') else item id' m (delete id e')
+  end.
+
+Fixpoint retrieve (id:var_id) (e:environment) : option env_val := 
+  match e with
+  | empty => None
+  | item id' m e' =>
+    if (beq_nat id id')
+                    then Some m
+                    else retrieve id e'
+  end.
+
+Definition empty_env := empty.
+Definition env_1 := add 1 (basic 1) empty_env.
+Print env_1.
+Definition env_2 := add 2 (basic 2) env_1.
+Definition env_3 := add 2 (basic 3) env_2.
+Definition env_4 := delete 2 env_3.
+Eval compute in env_4.
+Definition env_5 := delete 1 env_3.
+Eval compute in env_5.
+Eval compute in retrieve 2 env_5.
+
+Fixpoint evalMessage (m:message) (e:environment) : option message :=
+  match m with
+  | basic n => Some (basic n)
+  | var v => retrieve v e
+  | key k => Some (key k)
+  | encrypt m' k' =>
+    match (evalMessage m' e) with
+    | Some m'' => Some (encrypt m'' k')
+    | None => None
+    end
+  | sign m' k' =>
+    match (evalMessage m' e) with
+    | Some m'' => Some (sign m'' k')
+    | None => None
+    end      
+  | hash m' =>
+    match (evalMessage m' e) with
+    | Some m'' => Some (hash m'')
+    | None => None
+    end
+  | pair m1 m2 =>
+    match (evalMessage m1 e) with
+    | Some m'' =>
+      match (evalMessage m2 e) with
+      | Some m''' => Some (pair m'' m''')
+      | None => None
+      end
+    | None => None
+    end
+      
+  end.
+
+  
+Fixpoint runProto' {t t' : protoType} (p1:protoExp t) (p2:protoExp t') (p1Env : environment) (p2Env : environment) : option (environment * environment) :=
+match p1 with
+| SendC _ _ a p1' =>
+  match p2 with
+  | ReceiveC _ _ v p2' =>
+    match v with
+    | VarC n =>
+      match (evalMessage a p1Env) with
+      | Some m => runProto' p1' p2' p1Env (add n m p2Env)
+      | None => None
+      end
+    end
+  | _ => None
+  end
+| ReceiveC _ _ v p1' =>
+  match p2 with
+  | SendC _ _ a p2' =>  
+    match v with
+    | VarC n =>
+      match (evalMessage a p2Env) with
+      | Some m => runProto' p1' p2' (add n m p1Env) p2Env
+      | None => None
+      end
+    end
+  | _ => None
+  end 
+| EpsC => Some (p1Env, p2Env)    
+| _ => None
+end.
+                                                                 
+Definition runProto {t t' : protoType} (r:protoExp t) (s:protoExp t') (rEnv : environment) (sEnv : environment) (p:Dual r s) : option (environment * environment) := runProto' r s rEnv sEnv.
+
+Eval compute in runProto proto1 proto2 empty_env empty_env simpleDual.
+
+Definition proto1' := SendC (A:=bool) (basic 2)
+                      (ReceiveC bool (VarC 42) 
+                      EpsC).
+Check proto1'.
+
+Definition proto2' := ReceiveC bool (VarC 1)
+                      (SendC (A:=bool) (sign (var 1) (private 0))
+                      EpsC).
+Check proto2'.
+
+Example dual12' : Dual proto1' proto2'. unfold Dual. auto. Qed.
+
+Eval compute in runProto proto1' proto2' empty_env empty_env dual12'.
                            
 End try7.
 
