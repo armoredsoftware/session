@@ -648,14 +648,36 @@ What should a protocol "produce"?(what is the return type of runProto?).
 -How do we sequence and compose protocols (thread the result of one to the next)?
  *)
 
-Definition environment := list bool.
-Definition env1 : environment := [true ; false].
-Check env1.
+Definition environment(T:Type) := list (nat*T).
+Definition env1 : environment message := [ (0,(basic 1)) ].
 
+Definition add_env{T:Type}(binding:nat*T)(env:environment T):environment T :=
+  binding::env.
+
+Print option.
+
+Fixpoint lookup{T:Type}(i:nat)(e:environment T):option T :=
+  match e with
+  | [] => None
+  | b::bs => if (eq_nat_dec (fst b) i) then Some (snd b) else lookup i bs
+  end.
+
+Example lookup_ex: lookup 0 env1 = Some (basic 1).
+Proof. reflexivity. Qed.
+
+Example lookup_ex2: lookup 1 env1 = None.
+Proof. reflexivity. Qed.
+
+Example lookup_ex3: (lookup 1 (add_env (1,(basic 2)) env1)) = Some (basic 2).
+Proof. reflexivity. Qed.
+
+Example lookup_ex4: (lookup 1 (add_env (2,(basic 3)) (add_env (1,(basic 2)) env1))) = Some (basic 2).
+Proof. reflexivity. Qed.
 
 Definition runProto{t t' : protoType}
-           (r:protoExp t)(s:protoExp t')
-           (currentEnv : environment)(p:Dual r s) : environment.
+           (r:protoExp t) (s:protoExp t')
+           (currentEnv : environment message)
+           (p:Dual r s) : environment message.
 
 Notation "[|| x ||]" := (inleft _ x).
 
