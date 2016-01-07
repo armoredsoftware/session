@@ -669,7 +669,13 @@ match p1 with
       end
     end
   | _ => None
-  end 
+  end
+| ChoiceC _ _ b p1' p1'' =>
+  match p2 with
+  | OfferC _ _ p2' p2'' => if (b) then runProto' p1' p2' p1Env p2Env
+                             else runProto' p1'' p2'' p1Env p2Env
+  | _ => None
+  end
 | EpsC => Some (p1Env, p2Env)    
 | _ => None
 end.
@@ -691,6 +697,26 @@ Check proto2'.
 Example dual12' : Dual proto1' proto2'. unfold Dual. auto. Qed.
 
 Eval compute in runProto proto1' proto2' empty_env empty_env dual12'.
-                           
+
+Definition proto3' (b:bool) := ChoiceC b
+                             proto1'
+                             proto2'.
+
+Definition proto4' := OfferC
+                        proto2'
+                        proto1'.
+
+Example dual3'4' : Dual (proto3' true) proto4'. unfold Dual. auto. Qed.
+
+Eval compute in runProto (proto3' true) proto4' empty_env empty_env dual3'4'.
+
+(*Definition proto5 := ReceiveC bool (VarC 1)
+                     (proto3' (beq_nat (basic 2) (VarC 1))). *)
+
+Definition proto6 := SendC (A:=bool) (basic 2)
+                     proto4'.
+
+                     
+                     
 End try7.
 
