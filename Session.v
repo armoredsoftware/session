@@ -720,3 +720,67 @@ Definition proto6 := SendC (A:=bool) (basic 2)
                      
 End try7.
 
+Module try8.
+
+Inductive protoType : Type :=
+| Send : forall (A:Type), protoType -> protoType
+| Receive : forall (A:Type), protoType -> protoType
+| Choice : protoType -> protoType -> protoType
+| Offer : protoType -> protoType -> protoType   
+| Eps : protoType.
+
+Inductive protoExp : protoType -> Type :=
+| SendC {A:Type} {p:protoType} : A -> (protoExp p) -> protoExp (Send A p)
+| ReceiveC {p:protoType}{A:Type} : (A -> (protoExp p)) -> protoExp (Receive A p)  
+| ChoiceC {r s: protoType}
+  : bool -> (protoExp r) -> (protoExp s) -> (protoExp (Choice r s))
+| OfferC {r s : protoType}
+  : (protoExp r) -> (protoExp s) -> (protoExp (Offer r s))    
+| EpsC : protoExp Eps.
+
+Notation "x :!: y" := (Send x y)
+                        (at level 50, left associativity). 
+Notation "x :!: y" := (protoExp (Send x y))
+                        (at level 50, left associativity).
+
+Notation "x :?: y" := (Receive x y)
+                        (at level 50, left associativity).  
+Notation "x :?: y" := (protoExp (Receive x y))
+                        (at level 50, left associativity).
+
+Definition proto1 := SendC 1 EpsC.
+Check proto1.
+
+
+Definition proto2 :=
+  SendC 1
+  ( ReceiveC (fun x =>
+  ( ReceiveC (fun y =>
+  ( SendC (x + y) EpsC))))).                          
+Check proto2.
+
+Notation "'send' n ; p" := (SendC n p)
+                            (right associativity, at level 60).
+Notation "x <- 'receive' ; p " := (ReceiveC (fun x => p))
+                                  (right associativity, at level 60).
+
+Definition proto1' := send 1; EpsC.
+Check proto1'.
+
+Definition proto2' :=
+  send 1;
+  x <- receive;
+  y <- receive;
+  send (x + y);
+  EpsC.
+Check proto2'.
+
+Definition proto2'' :=
+  send 1;
+  x <- receive;
+  y <- receive;
+  send (andb x y);
+  EpsC.
+Check proto2''.
+
+End try8.
