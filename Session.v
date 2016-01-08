@@ -679,7 +679,7 @@ match p1 with
 | EpsC => Some (p1Env, p2Env)    
 | _ => None
 end.
-                                                                 
+
 Definition runProto {t t' : protoType} (r:protoExp t) (s:protoExp t') (rEnv : environment) (sEnv : environment) (p:Dual r s) : option (environment * environment) := runProto' r s rEnv sEnv.
 
 Eval compute in runProto proto1 proto2 empty_env empty_env simpleDual.
@@ -736,7 +736,7 @@ Inductive protoExp : protoType -> Type :=
   : bool -> (protoExp r) -> (protoExp s) -> (protoExp (Choice r s))
 | OfferC {r s : protoType}
   : (protoExp r) -> (protoExp s) -> (protoExp (Offer r s))    
-| EpsC : protoExp Eps.
+| ReturnC (A:Type) : A -> protoExp Eps.
 
 Notation "x :!: y" := (Send x y)
                         (at level 50, left associativity). 
@@ -748,7 +748,28 @@ Notation "x :?: y" := (Receive x y)
 Notation "x :?: y" := (protoExp (Receive x y))
                         (at level 50, left associativity).
 
-Definition proto1 := SendC 1 EpsC.
+Notation "x :+: y" := (Choice x y)
+                        (at level 50, left associativity).
+Notation "x :+: y" := (protoExp (Choice x y))
+                        (at level 50, left associativity). 
+
+Notation "x :&: y" := (Offer x y)
+                        (at level 50, left associativity).
+Notation "x :&: y" := (protoExp (Offer x y))
+                        (at level 50, left associativity).
+
+Inductive DualT : protoType -> protoType -> Prop :=
+| senRec : forall A r s, DualT r s -> DualT (Send A r) (Receive A s)
+| recSen : forall A r s, DualT r s -> DualT (Receive A s) (Send A r)
+| chOff : forall r s r' s', DualT r r' -> DualT s s' -> DualT (Choice r s) (Offer r' s')
+| offCh : forall r s r' s', DualT r r' -> DualT s s' -> DualT (Offer r' s') (Choice r s)                                                        
+| dualEps : DualT Eps Eps.
+
+Definition Dual {t t': protoType} (r:protoExp t) (s:protoExp t') : Prop :=
+  DualT t t'.
+
+Definition EpsC := ReturnC unit tt.
+Definition proto1 := SendC 1 (ReturnC unit tt).
 Check proto1.
 
 
@@ -756,7 +777,8 @@ Definition proto2 :=
   SendC 1
   ( ReceiveC (fun x =>
   ( ReceiveC (fun y =>
-  ( SendC (x + y) EpsC))))).                          
+  ( SendC (x + y)
+  ( EpsC)))))).                   
 Check proto2.
 
 Notation "'send' n ; p" := (SendC n p)
@@ -764,7 +786,9 @@ Notation "'send' n ; p" := (SendC n p)
 Notation "x <- 'receive' ; p " := (ReceiveC (fun x => p))
                                   (right associativity, at level 60).
 
-Definition proto1' := send 1; EpsC.
+Definition proto1' :=
+  send 1;
+  EpsC.
 Check proto1'.
 
 Definition proto2' :=
@@ -782,5 +806,54 @@ Definition proto2'' :=
   send (andb x y);
   EpsC.
 Check proto2''.
+
+Definition proto3 :=
+  x <- receive;
+  send (x+3);
+  send x;
+  y <- receive;
+  ReturnC bool y.
+
+Definition proto4 :=
+  x <- receive;
+  send (x + 1);
+  EpsC.
+Check proto4.
+
+Definition proto5 :=
+  send 1;
+  x <- receive;
+  ReturnC nat x.
+Check proto5.
+
+Hint Constructors DualT.
+
+Example dual45 : Dual proto4 proto5. Proof. unfold Dual. auto. Qed.
+
+Fixpoint runProto' {t t' : protoType} {A:Type} (p1:protoExp t) (p2:protoExp t')  : option A :=  
+  match p1 with
+| SendC _ _ a p1' =>
+  match p2 with
+  | ReceiveC _ _ f => runProto' p1' (f a)
+  | _ => None
+  end
+| ReceiveC _ _ f =>
+  match p2 with
+  | SendC _ _ a p2' => runProto' (f a) p2'
+  | _ => None
+  end
+| ChoiceC _ _ b p1' p1'' =>
+  match p2 with
+  | OfferC _ _ p2' p2'' => if (b) then runProto' p1' p2'
+                             else runProto' p1'' p2''
+  | _ => None
+  end
+| ReturnC A a => a    
+| _ => None
+end.
+
+Definition runProto {A:Type} {t t' : protoType} (r:protoExp t) (s:protoExp t') (p:Dual r s) : A  := runProto' r s.
+
+
 
 End try8.
