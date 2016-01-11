@@ -841,7 +841,7 @@ Definition proto6 :=
 Definition proto7 (b:bool) :=
   choice b
          EpsC
-         proto4.  Check proto7. Check (proto7 true).
+         proto4. Check (proto7 true).
 
 
   
@@ -868,7 +868,7 @@ Fixpoint runProto' {t t' : protoType} {A:Type} (p1:protoExp t) (p2:protoExp t') 
   match p1 with
 | SendC A p1t a p1' =>
   match p2 with
-  | ReceiveC A _ f => _ (*runProto' _ _ A p1' _ _ *)
+  | ReceiveC A _ f => runProto' _ _ A p1' (f a) _ 
   | _ => _
   end
 | ReceiveC _ _ f =>
