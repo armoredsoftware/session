@@ -1,4 +1,5 @@
 Require Export SfLib.
+Require Export CpdtTactics.
 (*Require Export Crypto. *)
 
 Module try1.
@@ -727,16 +728,16 @@ Inductive protoType : Type :=
 | Receive : forall (A:Type), protoType -> protoType
 | Choice : protoType -> protoType -> protoType
 | Offer : protoType -> protoType -> protoType   
-| Eps : protoType.
+| Eps : forall (A:Type), protoType.
 
 Inductive protoExp : protoType -> Type :=
-| SendC {A:Type} {p:protoType} : A -> (protoExp p) -> protoExp (Send A p)
-| ReceiveC {p:protoType}{A:Type} : (A -> (protoExp p)) -> protoExp (Receive A p)  
-| ChoiceC {r s: protoType}
-  : bool -> (protoExp r) -> (protoExp s) -> (protoExp (Choice r s))
+| SendC {A:Type} {p':protoType} : A -> (protoExp p') -> protoExp (Send A p')
+| ReceiveC {A:Type} {p':protoType}: (A->(protoExp p')) -> protoExp (Receive A p') 
+| ChoiceC (b:bool) {r s: protoType}
+  : (protoExp r) -> (protoExp s) -> (protoExp (Choice r s))
 | OfferC {r s : protoType}
-  : (protoExp r) -> (protoExp s) -> (protoExp (Offer r s))    
-| ReturnC (A:Type) : A -> protoExp Eps.
+  : (protoExp r) -> (protoExp s) -> (protoExp (Offer r s)) 
+| ReturnC {T:Type}  : T -> protoExp (Eps T).
 
 Notation "x :!: y" := (Send x y)
                         (at level 50, left associativity). 
@@ -763,13 +764,13 @@ Inductive DualT : protoType -> protoType -> Prop :=
 | recSen : forall A r s, DualT r s -> DualT (Receive A s) (Send A r)
 | chOff : forall r s r' s', DualT r r' -> DualT s s' -> DualT (Choice r s) (Offer r' s')
 | offCh : forall r s r' s', DualT r r' -> DualT s s' -> DualT (Offer r' s') (Choice r s)                                                        
-| dualEps : DualT Eps Eps.
+| dualEps : forall T1 T2,  DualT (Eps T1) (Eps T2).
 
 Definition Dual {t t': protoType} (r:protoExp t) (s:protoExp t') : Prop :=
   DualT t t'.
 
-Definition EpsC := ReturnC unit tt.
-Definition proto1 := SendC 1 (ReturnC unit tt).
+Definition EpsC := ReturnC tt.
+Definition proto1 := SendC 1 EpsC.
 Check proto1.
 
 
@@ -784,7 +785,11 @@ Check proto2.
 Notation "'send' n ; p" := (SendC n p)
                             (right associativity, at level 60).
 Notation "x <- 'receive' ; p " := (ReceiveC (fun x => p))
-                                  (right associativity, at level 60).
+                                    (right associativity, at level 60).
+
+Notation "'offer'" := OfferC.
+
+Notation "'choice'" := ChoiceC. 
 
 Definition proto1' :=
   send 1;
@@ -807,50 +812,79 @@ Definition proto2'' :=
   EpsC.
 Check proto2''.
 
+Definition constNat (b:bool) : nat := 42.
+
 Definition proto3 :=
   x <- receive;
   send (x+3);
   send x;
   y <- receive;
-  ReturnC bool y.
+  ReturnC (constNat y).
+Check proto3.
 
 Definition proto4 :=
   x <- receive;
   send (x + 1);
-  EpsC.
+  ReturnC x.
 Check proto4.
 
 Definition proto5 :=
   send 1;
   x <- receive;
-  ReturnC nat x.
+  ReturnC (T:=nat) x.
 Check proto5.
+
+Definition proto6 :=
+  offer EpsC
+        proto5. Check proto6.
+
+Definition proto7 (b:bool) :=
+  choice b
+         EpsC
+         proto4.  Check proto7. Check (proto7 true).
+
+
+  
+  
 
 Hint Constructors DualT.
 
 Example dual45 : Dual proto4 proto5. Proof. unfold Dual. auto. Qed.
 
-Fixpoint runProto' {t t' : protoType} {A:Type} (p1:protoExp t) (p2:protoExp t')  : option A :=  
+Example dual67 : Dual proto6 (proto7 true). Proof. unfold Dual. auto. Qed.
+
+
+(*Fixpoint getReturnType {p1t:protoType} (p1: protoExp p1t) : Type.
+  refine (
   match p1 with
-| SendC _ _ a p1' =>
+  | SendC _ p' _ p1' => getReturnType p' p1'
+  | ReceiveC _ p' f => getReturnType p' _
+  | _ => _
+  end). *)
+
+  
+Fixpoint runProto' {t t' : protoType} {A:Type} (p1:protoExp t) (p2:protoExp t') (d:Dual p1 p2) : A.
+  refine (
+  match p1 with
+| SendC A p1t a p1' =>
   match p2 with
-  | ReceiveC _ _ f => runProto' p1' (f a)
-  | _ => None
+  | ReceiveC A _ f => _ (*runProto' _ _ A p1' _ _ *)
+  | _ => _
   end
 | ReceiveC _ _ f =>
   match p2 with
-  | SendC _ _ a p2' => runProto' (f a) p2'
-  | _ => None
+  | SendC _ _ a p2' => _ (*runProto' (f a) p2' *)
+  | _ => _
   end
-| ChoiceC _ _ b p1' p1'' =>
+| ChoiceC b _ _ p1' p1'' =>
   match p2 with
-  | OfferC _ _ p2' p2'' => if (b) then runProto' p1' p2'
-                             else runProto' p1'' p2''
-  | _ => None
+  | OfferC _ _ p2' p2'' => if (b) then _ (*runProto' _ _ _ p1' p2'*)
+                             else _ (*runProto' _ _ _ p1'' p2''*)
+  | _ => _
   end
-| ReturnC A a => a    
-| _ => None
-end.
+| ReturnC A a => _ 
+| _ => _
+end). destruct p1. destruct p2. unfold Dual in d. inversion d.
 
 Definition runProto {A:Type} {t t' : protoType} (r:protoExp t) (s:protoExp t') (p:Dual r s) : A  := runProto' r s.
 
