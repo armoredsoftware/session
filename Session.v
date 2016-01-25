@@ -959,18 +959,19 @@ Inductive protoType : Type :=
 | Offer : protoType -> protoType -> protoType   
 | Eps : type -> protoType.
 
-Inductive Either (A:Type) (B:Type) : Type :=
+(*Inductive Either (A:Type) (B:Type) : Type :=
 | eLeft : A -> Either A B
-| eRight : B -> Either A B.
+| eRight : B -> Either A B. *)
 
-Inductive protoExp : protoType -> Type :=
-| SendC {t:type} {p':protoType}  : (message t) -> (protoExp p') -> protoExp (Send t p')
-| ReceiveC {t:type} {p':protoType} : ((message t)->(protoExp p')) -> protoExp  (Receive t p') 
-| ChoiceC (b:bool) {r s: protoType}
-  : (protoExp r) -> (protoExp s) -> (protoExp (Choice r s))
-| OfferC {r s : protoType}
-  : (protoExp r) -> (protoExp s) -> (protoExp (Offer r s)) 
-| ReturnC {t:type} : (message t) -> protoExp (Eps t).
+  
+Inductive protoExp : type -> protoType -> Type :=
+| SendC {t:type} {T:type} {p':protoType}  : (message t) -> (protoExp T p') -> protoExp T (Send t p')
+| ReceiveC {t:type} {T:type} {p':protoType} : ((message t)->(protoExp T p')) -> protoExp T  (Receive t p') 
+| ChoiceC (b:bool) {r s: protoType} {R S:type}
+  : (protoExp R r) -> (protoExp S s) -> (protoExp (if(b) then R else S) (Choice r s))
+| OfferC {r s : protoType} {R S:type}
+  : (protoExp R r) -> (protoExp S s) -> (protoExp (Either R S) (Offer r s))
+| ReturnC {t:type} : (message t) -> protoExp t (Eps t).
 
 Notation "x :!: y" := (Send x y)
                         (at level 50, left associativity). 
@@ -1019,16 +1020,50 @@ Definition proto2 :=
   ( EpsC)))))).                   
 Check proto2.
 
-Inductive DualT : protoType -> protoType -> Prop :=
+Check Prop.
+(*Inductive DualT : protoType -> protoType -> Prop :=
 | senRec : forall t r s, DualT r s -> DualT (Send t r) (Receive t s)
 | recSen : forall t r s, DualT r s -> DualT (Receive t s) (Send t r)
 | chOff : forall r s r' s', DualT r r' -> DualT s s' -> DualT (Choice r s) (Offer r' s')
 | offCh : forall r s r' s', DualT r r' -> DualT s s' -> DualT (Offer r' s') (Choice r s)                                                        
-| dualEps : forall t,  DualT (Eps t) (Eps t).
+| dualEps : forall t,  DualT (Eps t) (Eps t). *)
 
-Definition Dual {t t': protoType} (r:protoExp t) (s:protoExp t') : Prop :=
-  DualT t t'.
+(*Definition Dual {t t': protoType}{T T':type} (r:protoExp T t) (s:protoExp T' t') : Prop :=
+  DualT t t'. *)
 
+Fixpoint DualT (t t':protoType) : Prop :=
+  match t with
+  | Send p1T p1' =>
+    match t' with
+    | Receive p2T p2' => (p1T = p2T) /\ (DualT p1' p2')
+    | _ => False
+    end
+  | Receive p1T p1' =>
+    match t' with
+    | Send p2T p2' => (p1T = p2T) /\ (DualT p1' p2')
+    | _ => False
+    end
+  | Choice p1' p1'' =>
+    match t' with
+    | Offer p2' p2'' => (DualT p1' p2') /\ (DualT p1'' p2'')
+    | _ => False
+    end
+  | Offer p1' p1'' =>
+    match t' with
+    | Choice p2' p2'' => (DualT p1' p2') /\ (DualT p1'' p2'')
+    | _ => False
+    end
+  | Eps _ =>
+    match t' with
+    | Eps _ => True
+    | _ => False
+    end
+  end.
+
+Fixpoint DualT_dec {t t':protoType} : {DualT t t'} + {~ DualT t t'}. destruct t. destruct t'. apply right. simpl. unfold not. trivial. assert ({t = t1} + {t <> t1}). apply (eq_type_dec t t1). assert ({DualT t0 t'} + {~ DualT t0 t'}). apply (DualT_dec t0 t'). destruct H. destruct H0. apply left. simpl. split; assumption. apply right. simpl. unfold not. intros. destruct H. contradiction. apply right. unfold not. intros. destruct H. contradiction. right. unfold not. intros. inversion H. right. unfold not. intros. inversion H. right. unfold not. intros. inversion H. destruct t'. assert ({t = t1} + {t <> t1}). apply (eq_type_dec t t1). assert ({DualT t0 t'} + {~ DualT t0 t'}). apply (DualT_dec t0 t'). destruct H. destruct H0. apply left. simpl. split. assumption. assumption. right. unfold not. intros. destruct H. contradiction. apply right. unfold not. intros. destruct H. contradiction. right. unfold not. intros. inversion H. apply right. unfold not. intros. inversion H. apply right. unfold not. intros. inversion H. apply right. unfold not. intros. inversion H. destruct t'. apply right. unfold not. intros. inversion H. apply right. unfold not. intros. inversion H. apply right. unfold not. intros. inversion H. assert ({DualT t1 t'1} + {~ DualT t1 t'1}). apply (DualT_dec t1 t'1). assert ({DualT t2 t'2} + {~ DualT t2 t'2}). apply (DualT_dec t2 t'2). destruct H. destruct H0. left. simpl. split. assumption. assumption. right. unfold not. intros. destruct H. contradiction. right. unfold not. intros. destruct H. contradiction. right. unfold not. intros. inversion H. destruct t'. right. unfold not. intros. inversion H.  right. unfold not. intros. inversion H. assert ({DualT t1 t'1} + {~ DualT t1 t'1}). apply (DualT_dec t1 t'1). assert ({DualT t2 t'2} + {~ DualT t2 t'2}). apply (DualT_dec t2 t'2). destruct H. destruct H0. left. simpl. split; assumption. right. unfold not. intros. destruct H. contradiction. right. unfold not. intros. destruct H. contradiction. right. unfold not. intros. inversion H. right. unfold not. intros. inversion H. destruct t'. right. unfold not. intros. inversion H. right. unfold not. intros. inversion H. right. unfold not. intros. inversion H. right. unfold not. intros. inversion H. left. simpl. trivial. Defined.
+
+Definition Dual {t t':protoType} {T T':type} (p1:protoExp T t) (p2:protoExp T' t') : Prop := DualT t t'.
+  
 Definition incPayload (m:message Basic) : (message Basic) :=
   match m with
   | basic n => basic (n + 1)
@@ -1046,37 +1081,52 @@ Definition proto5 :=
   ReturnC (t:=Basic) x.
 Check proto5.
 
-Hint Constructors DualT.
+(*Hint Constructors DualT.
 Example dual45 : Dual proto4 proto5. unfold Dual. auto. Qed.
 
 Definition proto6 :=
   choice true EpsC
          proto4. Check proto6.
 
-(*Fixpoint getReturnType t t' (p1:protoExp t) (p2:protoExp t') (p:DualT t t') : type :=
-  match pt with
-  | SendC _ pt' => getReturnType pt'
-  | Receive _ pt' => getReturnType pt'
-  | Choice  *)
+Definition proto7 :=
+  offer EpsC
+        proto5. Check proto7.
 
-Lemma npn' : forall n, (n + S n = n) -> False.
-Proof.
-  intros. induction n. simpl in H. inversion H. apply IHn. destruct n. inversion H. omega. Qed.
+Example dual67 : Dual proto6 proto7. unfold Dual. auto. Qed.
 
-Example npn : forall n,  (n + n) = n -> (n = 0).
+Eval compute in eq_type_dec Basic Basic.
+
+Hint Resolve eq_type_dec.
+
+Example dual45OneStep : DualOneStep proto4 proto5. unfold DualOneStep. reflexivity. Qed.
+
+Example dual67OneStep : DualOneStep proto6 proto7. unfold DualOneStep. reflexivity. Qed.
+
+
+
+Theorem sendsend t t' t0 t1 : (DualT (Send t t0) (Send t' t1)) -> False.
 Proof.
-  intros. induction n. reflexivity. simpl in H. inversion H. apply npn' in H1. inversion H1. Qed.
-                                  
-Fixpoint runProto' t t' rt (p1:protoExp t) (p2:protoExp t') (p:DualT t t') : (message rt). Proof. destruct t. destruct t'. inversion p.
-  destruct t. destruct t'. inversion p.
-  refine (
-      match p1 with
-      | SendC SentType p1RetType p1'T m p1' =>
-        match p1 with
-        | ReceiveC RecType p2RetType p2'T f => runProto' _ _ _ _ p1' (f m) _
-        | _ => _
-        end
-      end).
+  intros. inversion H.
+  Qed. *)
+
+
+Fixpoint runProto t t' T T' (p1:protoExp T t) (p2:protoExp T' t')
+  : (message T) + {(~ (Dual p1 p2))}.
+                    case_eq p1. case_eq p2. intros. apply inright. unfold DualT. unfold not. trivial. intros. assert ({t0 = t1} + {t0 <> t1}). apply (eq_type_dec t0 t1). destruct H1. subst. clear H. clear H0. assert (message T1 + {~ Dual p0 (p m)}). apply (runProto p'0 p' T1 T0 p0 (p m)). destruct X. apply inleft. exact m0. apply inright. intros. unfold Dual. simpl. unfold Dual in n. unfold not in n. unfold not.  intros. destruct H.  apply n in H0.  assumption. apply inright. unfold Dual. simpl. unfold not. unfold not in n. intros. destruct H1. symmetry in H1. apply n in H1.  assumption. intros. apply inright. unfold Dual. simpl. unfold not. trivial. intros. apply inright. unfold Dual. unfold not. trivial. intros. apply inright. unfold Dual. unfold not. trivial. destruct p2. intros. assert ({t0 = t1} + {t0 <> t1}). apply (eq_type_dec t0 t1). destruct H0. subst. assert (message T1 + {~ Dual (p m) p2 }). apply (runProto p'0 p' T1 T0 (p m) p2). destruct X. apply inleft. exact m0. apply inright. intros. unfold Dual. simpl. unfold Dual in n. unfold not in n. unfold not.  intros. destruct H0.  apply n in H1.  assumption. apply inright. unfold Dual. simpl. unfold not. unfold not in n. intros. destruct H0. symmetry in H0. apply n in H0.  assumption. intros. apply inright. unfold Dual. unfold not. trivial. trivial. trivial. trivial. destruct p2. trivial. trivial. trivial. intros. destruct b. unfold Dual. simpl. subst.
+
+                    symmetry in H0. apply n in H0.  assumption. intros. apply inright. unfold DualOneStep. unfold not. trivial. intros. apply inright. unfold DualOneStep. unfold not. trivial. intros. apply inright. unfold DualOneStep. unfold not. trivial. intros. apply inright. unfold DualOneStep. unfold not. trivial. intros. destruct p2. intros. apply inright. unfold DualOneStep. unfold not. trivial. intros. apply inright. unfold DualOneStep. unfold not. trivial. intros. apply inright. unfold DualOneStep. unfold not. trivial. destruct b. apply (runProto _ _ _ _ _ _). apply (runProto _ _ _ _ _ _). intros. apply inright. unfold DualOneStep. unfold not. trivial. destruct p2. intros. apply inright. unfold DualOneStep. unfold not. trivial. intros. apply inright. unfold DualOneStep. unfold not. trivial. intros. apply (runProto _ _ _ _ _ _). intros. apply inright. unfold DualOneStep. unfold not. trivial. intros. apply inright. unfold DualOneStep. unfold not. trivial. destruct p2. intros. apply inright. unfold DualOneStep. unfold not. trivial. intros. apply inright. unfold DualOneStep. unfold not. trivial. intros. apply inright. unfold DualOneStep. unfold not. trivial. intros. apply inright. unfold DualOneStep. unfold not. trivial. intros. apply inleft. exact m0. Defined.  refine(
+  match p1 with
+  | SendC SentType p1T p1'T a p1' =>
+    match p2 with
+    | ReceiveC RecType p2T p2'T f =>
+      match (eq_type_dec SentType RecType) with
+      | left _ => _
+      | right _ => inright _
+      end
+    | _ => inright _
+    end
+  | _ => inleft _
+  end). Proof. unfold DualOneStep. unfold not. trivial.
                                                                          
 
 

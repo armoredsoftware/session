@@ -126,7 +126,8 @@ Inductive type : Type :=
 | Key : type
 | Encrypt : type -> type
 | Hash : type -> type
-| Pair : type -> type -> type.
+| Pair : type -> type -> type
+| Either : type -> type -> type.                         
 
 (** Basic messages are natural numbers.  Really should be held abstract, but we
   need an equality decision procedure to determine message equality.  Compound 
@@ -138,7 +139,9 @@ Inductive message : type -> Type :=
 | key : keyType -> message Key
 | encrypt : forall t, message t -> keyType -> message (Encrypt t)
 | hash : forall t, message t -> message (Hash t)
-| pair : forall t1 t2, message t1 -> message t2 -> message (Pair t1 t2).
+| pair : forall t1 t2, message t1 -> message t2 -> message (Pair t1 t2)
+| leither : forall t1 t2, message t1 -> message (Either t1 t2)
+| reither : forall t1 t2, message t2 -> message (Either t1 t2).                                          
 
 (** Predicate that determines if a message cannot be decrypted.  Could be
   that it is not encrypted to begin with or the wrong key is used. *)
@@ -336,8 +339,8 @@ Proof.
   [ left; subst; reflexivity 
   | right; unfold not; intros; inversion H; apply inj_pair2_eq_dec in H1; apply inj_pair2_eq_dec in H2; [ contradiction | apply eq_type_dec | apply eq_type_dec | apply eq_type_dec ]
   | right; unfold not; intros; inversion H; apply inj_pair2_eq_dec in H1; apply inj_pair2_eq_dec in H2; [ contradiction | apply eq_type_dec | apply eq_type_dec | apply eq_type_dec ]
-  | right; unfold not; intros; inversion H; apply inj_pair2_eq_dec in H1; apply inj_pair2_eq_dec in H2; [ contradiction | apply eq_type_dec | apply eq_type_dec | apply eq_type_dec ]].
-Defined.
+  | right; unfold not; intros; inversion H; apply inj_pair2_eq_dec in H1; apply inj_pair2_eq_dec in H2; [ contradiction | apply eq_type_dec | apply eq_type_dec | apply eq_type_dec ]]. Abort.
+(*Defined. *)
   
 
 (*
@@ -352,7 +355,7 @@ Defined.
 Defined.
  *)
 
-Hint Resolve message_eq_dec.
+(*Hint Resolve message_eq_dec. *)
 
 Print encrypt.
 
