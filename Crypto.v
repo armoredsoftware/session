@@ -276,7 +276,7 @@ Proof.
    | subst; right; unfold not; intros; inversion H; contradiction ]
   | [ |- _ ] => right; unfold not; intros; inversion H 
   end.
-  Qed.
+  Defined.
 
 Theorem message_eq_lemma: forall t, forall m:(message t), forall m':(message t), forall k k',
     {m=m'}+{m<>m'} ->
