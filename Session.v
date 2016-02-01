@@ -972,7 +972,8 @@ Inductive protoExp : type -> protoType -> Type :=
   : (protoExp R r) -> (protoExp S s) -> (protoExp (if(b) then R else S) (Choice r s))
 | OfferC {r s : protoType} {R S:type}
   : (protoExp R r) -> (protoExp S s) -> (protoExp (Either R S) (Offer r s))
-| DecryptC {p':protoType} {mt T:type} : (message (Encrypt mt)) ->  (protoExp T p') -> protoExp T (Decrypt p')   
+| DecryptC {p':protoType} {mt T:type} : (message (Encrypt mt)) ->
+                                        (protoExp T p') -> protoExp T (Decrypt p')   
 | ReturnC {t:type} : (message t) -> protoExp t (Eps t).
 
 Notation "x :!: y" := (Send x y)

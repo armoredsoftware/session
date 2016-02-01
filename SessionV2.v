@@ -410,12 +410,12 @@ Definition protoLength {t:protoType} {T:type} (p1:protoExp T t) : nat := protoTy
 
 Eval compute in protoTypeLength (Send Basic (Eps Basic)).
 
-(*Fixpoint DualT' (t t':protoType) : Prop :=
+Fixpoint DualT' (t t':protoType) : Prop :=
   match t with
   | Send p1T p1' =>
     match t' with
     | Receive p2T p2' => (p1T = p2T) /\ (DualT' p1' p2')
-    | Decrypt t'' => DualT' t t''            
+    (*| Decrypt t'' => DualT'' t t''      *)     
     | _ => False
     end
   | Receive p1T p1' =>
@@ -439,15 +439,85 @@ Eval compute in protoTypeLength (Send Basic (Eps Basic)).
     | Eps _ => True           
     | _ => False
     end
-  end. *)
+  end. 
+
+
+(*Fixpoint DualT' (t t':protoType) : Prop :=
+  match t with
+  | Send p1T p1' =>
+    match t' with
+    | Receive p2T p2' => (p1T = p2T) /\ (DualT' p1' p2')
+    | Decrypt t'' => DualT'' t t''           
+    | _ => False
+    end
+  | Receive p1T p1' =>
+    match t' with
+    | Send p2T p2' => (p1T = p2T) /\ (DualT' p1' p2')                                
+    | _ => False
+    end
+  | Choice p1' p1'' =>
+    match t' with
+    | Offer p2' p2'' => (DualT' p1' p2') /\ (DualT' p1'' p2'')                                                             
+    | _ => False
+    end
+  | Offer p1' p1'' =>
+    match t' with
+    | Choice p2' p2'' => (DualT' p1' p2') /\ (DualT' p1'' p2'')                                                               
+    | _ => False
+    end
+  | Decrypt p1' => DualT' p1' t' (*Check this *) 
+  | Eps _ =>
+    match t' with
+    | Eps _ => True           
+    | _ => False
+    end
+  end
+
+with DualT'' x y :=       
+  match y with
+  | Send p1T p1' =>
+    match x with
+    | Receive p2T p2' => (p1T = p2T) /\ (DualT'' p2' p1')
+    | Decrypt t'' => DualT' t'' y         
+    | _ => False
+    end
+  | Receive p1T p1' =>
+    match x with
+    | Send p2T p2' => (p1T = p2T) /\ (DualT'' p2' p1')                                
+    | _ => False
+    end
+  | Choice p1' p1'' =>
+    match x with
+    | Offer p2' p2'' => (DualT'' p2' p1') /\ (DualT'' p2'' p1'')                                                             
+    | _ => False
+    end
+  | Offer p1' p1'' =>
+    match x with
+    | Choice p2' p2'' => (DualT'' p2' p1') /\ (DualT'' p2'' p1'')                                                               
+    | _ => False
+    end
+  | Decrypt p1' => DualT'' x p1' (*Check this *) 
+  | Eps _ =>
+    match x with
+    | Eps _ => True           
+    | _ => False
+    end
+  end.
+*)
+
+
+
    
 
-Fixpoint DualT' (t t':protoType) (n:nat) : Prop :=
+(*Fixpoint DualT' (t t':protoType) (n:nat) : Prop :=
+  match n with
+  | O => False
+  | S _ => 
   match t with
   | Send p1T p1' =>
     match t' with
     | Receive p2T p2' => (p1T = p2T) /\ (DualT' p1' p2' (protoTypeLength p1'))
-    | Decrypt t'' => DualT' t t'' (protoTypeLength t'')               
+    (*| Decrypt t'' => DualT' t t'' (protoTypeLength t'')  *)             
     | _ => False
     end
   | Receive p1T p1' =>
@@ -471,22 +541,23 @@ Fixpoint DualT' (t t':protoType) (n:nat) : Prop :=
     | Eps _ => True           
     | _ => False
     end
-  end.
+  end
+  end. 
 
-Eval compute in (max 0 5).
+Eval compute in (max 0 5). *)
 
-Definition DualT (t t':protoType) : Prop := DualT' t t' (protoTypeLength t') (*(max (protoTypeLength t) (protoTypeLength t'))*).
+Definition DualT (t t':protoType) : Prop := DualT' t t' (*(protoTypeLength t')*) (*(max (protoTypeLength t) (protoTypeLength t'))*).
 
 Fixpoint DualT_dec (t t':protoType) : {DualT t t'} + {~ DualT t t'}. destruct t. destruct t'. apply right. simpl. unfold not. trivial. assert ({t = t1} + {t <> t1}). apply (eq_type_dec t t1). assert ({DualT t0 t'} + {~ DualT t0 t'}). apply (DualT_dec t0 t'). destruct H. destruct H0. apply left. unfold DualT. simpl. split; assumption. fold DualT'. apply right. simpl. unfold not. intros. destruct H. contradiction. apply right. unfold not. intros. destruct H. contradiction. right. unfold not. intros. inversion H. right. unfold not. intros. inversion H. apply (DualT_dec (Send t t0) (Decrypt t')).
 
-                                                                     right. unfold not. intros. inversion H.  destruct t'. assert ({t = t1} + {t <> t1}). apply (eq_type_dec t t1). assert ({DualT t0 t'} + {~ DualT t0 t'}). apply (DualT_dec t0 t'). destruct H. destruct H0. apply left. simpl. split. assumption. unfold DualT in d. assumption. right. unfold not. intros. destruct H. contradiction. apply right. unfold not. intros. destruct H. contradiction. right. unfold not. intros. inversion H. apply right. unfold not. intros. inversion H. apply right. unfold not. intros. inversion H. apply right. unfold not. intros. inversion H. right. unfold not. intros. inversion H. destruct t'. apply right. unfold not. intros. inversion H. apply right. unfold not. intros. inversion H. apply right. unfold not. intros. inversion H. assert ({DualT' t1 t'1 (max (protoTypeLength t2) (protoTypeLength t'2))} + {~ DualT' t1 t'1 (max (protoTypeLength t2) (protoTypeLength t'2))}). apply (DualT_dec t1 t'1). assert ({DualT t2 t'2} + {~ DualT t2 t'2}). apply (DualT_dec t2 t'2). destruct H. destruct H0. left. unfold DualT. simpl. split. unfold DualT in d.  unfold DualT in d0. assumption. assumption. right. unfold not. intros. destruct H. contradiction. right. unfold not. intros. destruct H. contradiction. right. unfold not. intros. inversion H. right. unfold not. intros. inversion H. destruct t'. right. unfold not. intros. inversion H.  right. unfold not. intros. inversion H. assert ({DualT t1 t'1} + {~ DualT t1 t'1}). apply (DualT_dec t1 t'1). assert ({DualT t2 t'2} + {~ DualT t2 t'2}). apply (DualT_dec t2 t'2). destruct H. destruct H0. left. simpl. split; assumption. right. unfold not. intros. destruct H. contradiction. right. unfold not. intros. destruct H. contradiction. right. unfold not. intros. inversion H. right. unfold not. intros. inversion H. right. unfold not. intros. inversion H. destruct t'. destruct t. right. unfold not. intros. inversion H. assert ({DualT (Receive t t1) (Send t0 t')} + {~DualT (Receive t t1) (Send t0 t')}). 
+                                                                     right. unfold not. intros. inversion H.  destruct t'. assert ({t = t1} + {t <> t1}). apply (eq_type_dec t t1). assert ({DualT t0 t'} + {~ DualT t0 t'}). apply (DualT_dec t0 t'). destruct H. destruct H0. apply left. simpl. split. assumption. unfold DualT in d. assumption. right. unfold not. intros. destruct H. contradiction. apply right. unfold not. intros. destruct H. contradiction. right. unfold not. intros. inversion H. apply right. unfold not. intros. inversion H. apply right. unfold not. intros. inversion H. apply right. unfold not. intros. inversion H. right. unfold not. intros. inversion H. destruct t'. apply right. unfold not. intros. inversion H. apply right. unfold not. intros. inversion H. apply right. unfold not. intros. inversion H. assert ({DualT' t1 t'1 (* (max (protoTypeLength t2) (protoTypeLength t'2))*)} + {~ DualT' t1 t'1 (*(max (protoTypeLength t2) (protoTypeLength t'2))*)}). apply (DualT_dec t1 t'1). assert ({DualT t2 t'2} + {~ DualT t2 t'2}). apply (DualT_dec t2 t'2). destruct H. destruct H0. left. unfold DualT. simpl. split. unfold DualT in d.  unfold DualT in d0. assumption. assumption. right. unfold not. intros. destruct H. contradiction. right. unfold not. intros. destruct H. contradiction. right. unfold not. intros. inversion H. right. unfold not. intros. inversion H. destruct t'. right. unfold not. intros. inversion H.  right. unfold not. intros. inversion H. assert ({DualT t1 t'1} + {~ DualT t1 t'1}). apply (DualT_dec t1 t'1). assert ({DualT t2 t'2} + {~ DualT t2 t'2}). apply (DualT_dec t2 t'2). destruct H. destruct H0. left. simpl. split; assumption. right. unfold not. intros. destruct H. contradiction. right. unfold not. intros. destruct H. contradiction. right. unfold not. intros. inversion H. right. unfold not. intros. inversion H. right. unfold not. intros. inversion H. destruct t'. destruct t. right. unfold not. intros. inversion H. assert ({DualT (Receive t t1) (Send t0 t')} + {~DualT (Receive t t1) (Send t0 t')}).
 
 assert ({t = t0} + {t <> t0}). apply (eq_type_dec t t0). assert ({DualT t1 t'} + {~ DualT t1 t'}). apply (DualT_dec t1 t'). destruct H. destruct H0. left. simpl. split; assumption. right. unfold not. intros. destruct H. contradiction. right. unfold not. intros. destruct H. contradiction. destruct H. left. simpl. destruct d. split; assumption. right. apply n. right. unfold not. intros. inversion H. right. unfold not. intros. inversion H. assert ({DualT t (Send t0 t')} + {~ DualT t (Send t0 t')}). apply (DualT_dec t (Send t0 t')). destruct H. left. simpl. apply d. right. unfold not. intros. simpl in H. contradiction. right. unfold not. intros. inversion H.
 
-assert ({DualT t (Receive t0 t')} + {~ DualT t (Receive t0 t')}). apply (DualT_dec t (Receive t0 t')). destruct H. left. simpl. apply d. right. simpl. apply n.  assert ({DualT t (Choice t'1 t'2)} + {~ DualT t (Choice t'1 t'2)}). apply (DualT_dec t (Choice t'1 t'2)). destruct H. left. simpl. apply d. right. simpl. apply n. assert ({DualT t (Offer t'1 t'2)} + {~ DualT t (Offer t'1 t'2)}). apply (DualT_dec t (Offer t'1 t'2)). destruct H. left. simpl. apply d. right. simpl. apply n. assert ({DualT t (Decrypt t')} + {~ DualT t (Decrypt t')}). apply (DualT_dec t (Decrypt t')). destruct H. left. simpl. apply d. right. simpl. apply n. assert ({DualT t (Eps t0)} + {~ DualT t (Eps t0)}). apply (DualT_dec t (Eps t0)). destruct H. left. simpl. apply d. right. simpl. apply n. destruct t'. right. unfold not. intros. inversion H. right. unfold not. intros. inversion H. right. unfold not. intros. inversion H. right. unfold not. intros. inversion H. right. unfold not. intros. inversion H. left. simpl. trivial. Defined.
+assert ({DualT t (Receive t0 t')} + {~ DualT t (Receive t0 t')}). apply (DualT_dec t (Receive t0 t')). destruct H. left. simpl. apply d. right. simpl. apply n.  assert ({DualT t (Choice t'1 t'2)} + {~ DualT t (Choice t'1 t'2)}). apply (DualT_dec t (Choice t'1 t'2)). destruct H. left. simpl. apply d. right. simpl. apply n. assert ({DualT t (Offer t'1 t'2)} + {~ DualT t (Offer t'1 t'2)}). apply (DualT_dec t (Offer t'1 t'2)). destruct H. left. simpl. apply d. right. simpl. apply n. assert ({DualT t (Decrypt t')} + {~ DualT t (Decrypt t')}). apply (DualT_dec t (Decrypt t')). destruct H. left. simpl. apply d. right. simpl. apply n. assert ({DualT t (Eps t0)} + {~ DualT t (Eps t0)}). apply (DualT_dec t (Eps t0)). destruct H. left. simpl. apply d. right. simpl. apply n. destruct t'. right. unfold not. intros. inversion H. right. unfold not. intros. inversion H. right. unfold not. intros. inversion H. right. unfold not. intros. inversion H. right. unfold not. intros. inversion H. left. simpl. trivial. Abort. (* Defined. *)
 
-Definition isDual := DualT_dec (Decrypt (Eps Basic)) (Eps Basic).
-Eval compute in isDual.
+(*Definition isDual := DualT_dec (Decrypt (Eps Basic)) (Eps Basic).
+Eval compute in isDual. *)
 
 Definition Dual {t t':protoType} {T T':type} (p1:protoExp T t) (p2:protoExp T' t') : Prop := DualT t t'.
 
@@ -529,10 +600,10 @@ Example DualTNeed : DualT
 
 (Receive (Encrypt Basic)
   (Send (Encrypt (Pair Basic Basic)) (Decrypt (
-    (Receive (Encrypt Basic) (Eps (Encrypt Basic))))))). simpl. split; trivial. split;trivial. split;trivial.
+    (Receive (Encrypt Basic) (Eps (Encrypt Basic))))))). simpl. split; trivial. split;trivial. Abort.
 
 Example DualNeedham : Dual Needham_A Needham_B.
-Proof. unfold Dual. simpl
+Proof. unfold Dual. simpl. split. trivial. Abort.
 
 (*Definition Dual_dec {t t':protoType} {T T':type} (p1:protoExp T t) (p2:protoExp T' t') : {Dual p1 p2} + {~ Dual p1 p2}. assert ({DualT t t'} + {~DualT t t'}). apply (DualT_dec t t'). destruct p1. destruct p2. right. unfold not. intros. inversion H0.
   refine (
@@ -549,7 +620,7 @@ Inductive protoError {t t':protoType} {T T':type} (p1:protoExp T t) (p2:protoExp
 | NotDual : (~Dual p1 p2) -> protoError p1 p2
 | NoDecrypt : (*forall  (m:message t) (k:keyType), (is_not_decryptable t m k) -> *) protoError p1 p2.              
 
-Fixpoint runProto' {t t':protoType} {T T':type} (p1:protoExp T t) (p2:protoExp T' t') (l: nat)
+(*Fixpoint runProto' {t t':protoType} {T T':type} (p1:protoExp T t) (p2:protoExp T' t') (l: nat)
   : (message T) + {(protoError p1 p2)}. (*{(~ (Dual p1 p2))}*)
                     case_eq p1. case_eq p2. intros. apply inright. apply NotDual. unfold not. trivial. intros. assert ({t0 = t1} + {t0 <> t1}). apply (eq_type_dec t0 t1). destruct H1. subst. clear H. clear H0. assert (message T1 + {(protoError p0 (p m))}). apply (runProto' p'0 p' T1 T0 p0 (p m) (protoTypeLength p'0)). destruct X. apply inleft. exact m0. apply inright. destruct p3. apply NotDual. unfold not. intros. inversion H0. contradiction. apply NoDecrypt. clear H. clear H0. apply inright. apply NotDual. unfold not. intros. inversion H. symmetry in H0. contradiction. intros. apply inright. apply NotDual. unfold not. intros. inversion H1. intros. apply inright. apply NotDual. unfold not. intros. inversion H1. intros. apply inright. apply NotDual. unfold not. intros. inversion H1. intros. apply inright. apply NotDual. unfold not. intros. inversion H1. intros. destruct p2. assert ({t0 = t1} + {t0 <> t1}). apply (eq_type_dec t0 t1). destruct H0. subst. clear H. assert (message T0 + {(protoError (p m) p2)}). apply (runProto' _ _ _ _ (p m) p2 (protoTypeLength p')). destruct X. apply inleft. exact m0. apply inright. destruct p0. apply NotDual. unfold not. intros. inversion H0. contradiction. apply NoDecrypt. clear H. apply inright. apply NotDual. unfold not. intros. inversion H. contradiction. apply inright. apply NotDual. unfold not. intros. inversion H0. apply inright. apply NotDual. unfold not. intros. inversion H0. apply inright. apply NotDual. unfold not. intros. inversion H0. apply inright. apply NotDual. unfold not. intros. inversion H0. apply inright. apply NotDual. unfold not. intros. inversion H0. intros. destruct b. destruct p2. apply inright. apply NotDual. unfold not. intros. inversion H0. apply inright. apply NotDual. unfold not. intros. inversion H0. apply inright. apply NotDual. unfold not. intros. inversion H0.
                     assert ({DualT r r0} + {~ DualT r r0}). apply (DualT_dec r r0). assert ({DualT s s0} + {~ DualT s s0}). apply (DualT_dec s s0). destruct H0. destruct H1. destruct (runProto' r r0 R R0 p p2_1 (protoTypeLength r0)). left. exact m. apply inright. destruct p2. contradiction. apply NoDecrypt. apply inright. apply NotDual. unfold not. intros. inversion H0. contradiction. apply inright. apply NotDual. unfold not. intros. inversion H0. contradiction. apply inright. apply NotDual. unfold not. intros. inversion H0.  apply inright. apply NotDual. unfold not. intros. inversion H0. destruct p2. apply inright. apply NotDual. unfold not. intros. inversion H0. apply inright. apply NotDual. unfold not. intros. inversion H0. apply inright. apply NotDual. unfold not. intros. inversion H0.
@@ -622,8 +693,10 @@ Eval compute in (runProto proto3 proto3').
 Eval compute in (runProto proto4 proto5).
 Eval compute in (runProto proto5 proto4).
 Eval compute in (runProto proto5 proto3).
-Eval compute in (runProto proto6 proto7).
+Eval compute in (runProto proto6 proto7). *)
 
 
 
 End try11.
+
+
