@@ -956,7 +956,8 @@ Inductive protoType : Type :=
 | Send : type -> protoType -> protoType
 | Receive : type -> protoType -> protoType
 | Choice : protoType -> protoType -> protoType
-| Offer : protoType -> protoType -> protoType   
+| Offer : protoType -> protoType -> protoType
+| Decrypt : protoType -> protoType                                    
 | Eps : type -> protoType.
 
 (*Inductive Either (A:Type) (B:Type) : Type :=
@@ -971,6 +972,7 @@ Inductive protoExp : type -> protoType -> Type :=
   : (protoExp R r) -> (protoExp S s) -> (protoExp (if(b) then R else S) (Choice r s))
 | OfferC {r s : protoType} {R S:type}
   : (protoExp R r) -> (protoExp S s) -> (protoExp (Either R S) (Offer r s))
+| DecryptC {p':protoType} {mt T:type} : (message (Encrypt mt)) ->  (protoExp T p') -> protoExp T (Decrypt p')   
 | ReturnC {t:type} : (message t) -> protoExp t (Eps t).
 
 Notation "x :!: y" := (Send x y)
@@ -1087,6 +1089,10 @@ Fixpoint runProto' {t t':protoType} {T T':type} (p1:protoExp T t) (p2:protoExp T
 
                     destruct p2. right. unfold not. intros. inversion H0. right. unfold not. intros. inversion H0. destruct b. unfold Dual. assert ({DualT r r0} + {~ DualT r r0}). apply (DualT_dec r r0). assert ({DualT s s0} + {~ DualT s s0}). apply (DualT_dec s s0). destruct H0. destruct H1. destruct (runProto' s s0 S S0 p0 p2_2 (protoTypeLength s0)). left. exact (reither R S m). unfold not in n. unfold Dual in n. apply n in d0. inversion d0. right. unfold not. intros. destruct H0. contradiction. right. unfold not. intros. destruct H0. contradiction. unfold Dual. assert ({DualT r r0} + {~ DualT r r0}). apply (DualT_dec r r0). assert ({DualT s s0} + {~ DualT s s0}). apply (DualT_dec s s0). destruct H0. destruct H1. destruct (runProto' r r0 R R0 p p2_1 (protoTypeLength r0)). left. exact (leither R S m). unfold not in n. unfold Dual in n. apply n in d. inversion d. right. unfold not. intros. destruct H0. contradiction. right. unfold not. intros. destruct H0. contradiction. right. unfold not. intros. inversion H0. right. unfold not. intros. inversion H0. intros. destruct p2. right. unfold not. intros. inversion H0. right. unfold not. intros. inversion H0. right. unfold not. intros. inversion H0. right. unfold not. intros. inversion H0. left. exact m. Defined.
 
+Inductive protoError {t t':protoType} {T T':type} (p1:protoExp T t) (p2:protoExp T' t') : Type :=
+| NotDual : (~ Dual p1 p2) -> protoError p1 p2
+| NoDecrypt : protoError p1 p2.
+  
 Definition runProto {t t':protoType} {T T':type} (p1:protoExp T t) (p2:protoExp T' t')
   : (message T) + {(~ (Dual p1 p2))} := runProto' p1 p2 (protoLength p1).
 
@@ -1131,5 +1137,14 @@ Eval compute in (runProto proto3 proto3').
 
 Eval compute in (runProto proto4 proto5).
 Eval compute in (runProto proto5 proto4).
+Eval compute in (runProto proto5 proto3).
+Eval compute in (runProto proto6 proto7).
+
+Definition Needham_A :=
+  send (encrypt (Pair Basic Basic) (pair Basic Basic (basic 1) (basic 1))
+                (public 2));
+  x <- receive;
+  send 
+  EpsC.
 
 End try9.
