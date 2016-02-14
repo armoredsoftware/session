@@ -1,6 +1,5 @@
 Require Export SfLib.
 Require Export CpdtTactics.
-Require Export Setoid.
 Require Export Crypto.
 
 Module session.
@@ -25,7 +24,7 @@ Inductive protoExp : type -> protoType -> Type :=
     -> (protoExp (Either R S) (Offer r s))  
 | ReturnC {t:type} : (message t) -> protoExp t (Eps t).
 
-Notation "x :!: y" := (Send x y)
+(*Notation "x :!: y" := (Send x y)
                         (at level 50, left associativity). 
 Notation "x :!: y" := (protoExp (Send x y))
                         (at level 50, left associativity).
@@ -35,15 +34,15 @@ Notation "x :?: y" := (Receive x y)
 Notation "x :?: y" := (protoExp (Receive x y))
                         (at level 50, left associativity).
 
-Notation "x :+: y" := (Choice x y)
+(*Notation "x :+: y" := (Choice x y)
                         (at level 50, left associativity).
 Notation "x :+: y" := (protoExp (Choice x y))
-                        (at level 50, left associativity). 
+                        (at level 50, left associativity).  *)
 
 Notation "x :&: y" := (Offer x y)
                         (at level 50, left associativity).
 Notation "x :&: y" := (protoExp (Offer x y))
-                        (at level 50, left associativity).
+                        (at level 50, left associativity). *)
 
 Notation "'send' n ; p" := (SendC n p)
                             (right associativity, at level 60).
@@ -154,8 +153,36 @@ Fixpoint DualT' (t t':protoType) : Prop :=
 
 Definition DualT (t t':protoType) : Prop := DualT' t t'.
 
-Fixpoint DualT_dec (t t':protoType) : {DualT t t'} + {~ DualT t t'}. destruct t. destruct t'. right. simpl. unfold not. trivial. assert ({t = t2} + {t <> t2}). apply (eq_type_dec t t2). assert ({DualT t0 t'} + {~ DualT t0 t'}). apply (DualT_dec t0 t'). destruct H. destruct H0. apply left. unfold DualT. simpl. split; assumption. fold DualT'. apply right. simpl. unfold not. intros. destruct H. contradiction. apply right. unfold not. intros. destruct H. contradiction. right. unfold not. intros. inversion H. right. unfold not. intros. inversion H. right. unfold not. intros. inversion H.
-                                                                     destruct t'. assert ({t = t2} + {t <> t2}). apply (eq_type_dec t t2). assert ({DualT t0 t'} + {~ DualT t0 t'}). apply (DualT_dec t0 t'). destruct H. destruct H0. apply left. simpl. split; assumption.  right. unfold not. intros. destruct H. contradiction. apply right. unfold not. intros. destruct H. contradiction. right. unfold not. intros. inversion H. apply right. unfold not. intros. inversion H. apply right. unfold not. intros. inversion H. apply right. unfold not. intros. inversion H. destruct t'. right. unfold not. intros. inversion H. intros. right. unfold not. intros. inversion H. right. unfold not. intros. inversion H. assert ({DualT t2 t'1 } + {~ DualT t2 t'1}). apply (DualT_dec t2 t'1). assert ({DualT t3 t'2} + {~ DualT t3 t'2}). apply (DualT_dec t3 t'2). destruct H. destruct H0. left. unfold DualT. simpl. split. unfold DualT in d.  unfold DualT in d0. assumption. assumption. right. unfold not. intros. destruct H. contradiction. right. unfold not. intros. destruct H. contradiction. right. unfold not. intros. inversion H.  destruct t'. right. unfold not. intros. inversion H. right. unfold not. intros. inversion H. assert ({DualT t2 t'1} + {~ DualT t2 t'1}). apply (DualT_dec t2 t'1). assert ({DualT t3 t'2} + {~ DualT t3 t'2}). apply (DualT_dec t3 t'2). destruct H. destruct H0. left. simpl. split; assumption. right. unfold not. intros. destruct H. contradiction. right. unfold not. intros. destruct H. contradiction. right. unfold not. intros. inversion H. right. unfold not. intros. inversion H. destruct t'. right. unfold not. intros. inversion H. right. unfold not. intros. inversion H. right. unfold not. intros. inversion H. right. unfold not. intros. inversion H. left. simpl. trivial. Defined.
+  (*repeat match goal with        
+  (*| [ |- {DualT (?T _ _) (?T _ _)} + {~ DualT (?T _ _) (?T _ _)} ]
+    => right; unfold not; trivial  *)
+  | [ |- _ ] =>  right; unfold not; intros; inversion H; contradiction
+  end. *)
+
+Fixpoint DualT_dec (t t':protoType) : {DualT t t'} + {~ DualT t t'}.
+Proof. 
+  destruct t; destruct t';
+  (* Eliminate all un-interesting cases *)
+  try (right; unfold not; intros; inversion H; contradiction);
+
+  (* For the Send/Receive, Receive/Send cases *)
+  try (
+  destruct (eq_type_dec t t2); destruct (DualT_dec t0 t');
+  try (right; unfold not; intros; inversion H; contradiction);
+  try (left; split; assumption)
+  );
+
+  (* For the Choice/Offer, Offer/Choice cases *)
+  try (
+  destruct (DualT_dec t2 t'1); destruct (DualT_dec t3 t'2);
+  try (right; unfold not; intros; inversion H; contradiction);
+  try( left; split; assumption)
+    ).
+
+  (* Eps/Eps case *)
+  left. simpl. trivial.
+  
+Defined.
 
 Definition Dual {t t':protoType} {T T':type} (p1:protoExp T t) (p2:protoExp T' t') : Prop := DualT t t'.            
 
