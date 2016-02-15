@@ -24,7 +24,7 @@ Inductive protoExp : type -> protoType -> Type :=
     -> (protoExp (Either R S) (Offer r s))  
 | ReturnC {t:type} : (message t) -> protoExp t (Eps t).
 
-(*Notation "x :!: y" := (Send x y)
+Notation "x :!: y" := (Send x y)
                         (at level 50, left associativity). 
 Notation "x :!: y" := (protoExp (Send x y))
                         (at level 50, left associativity).
@@ -34,20 +34,20 @@ Notation "x :?: y" := (Receive x y)
 Notation "x :?: y" := (protoExp (Receive x y))
                         (at level 50, left associativity).
 
-(*Notation "x :+: y" := (Choice x y)
+Notation "x :+: y" := (Choice x y)
                         (at level 50, left associativity).
 Notation "x :+: y" := (protoExp (Choice x y))
-                        (at level 50, left associativity).  *)
+                        (at level 50, left associativity).  
 
 Notation "x :&: y" := (Offer x y)
                         (at level 50, left associativity).
 Notation "x :&: y" := (protoExp (Offer x y))
-                        (at level 50, left associativity). *)
+                        (at level 50, left associativity). 
 
 Notation "'send' n ; p" := (SendC n p)
                             (right associativity, at level 60).
 Notation "x <- 'receive' ; p " := (ReceiveC (fun x => p)) 
-                                    (right associativity, at level 60).
+                                    (right associativity, at level 60). 
 
 Notation "'offer'" := OfferC.
 
@@ -189,13 +189,37 @@ Definition Dual {t t':protoType} {T T':type} (p1:protoExp T t) (p2:protoExp T' t
 
 Fixpoint runProto' {t t':protoType} {T T':type} (p1:protoExp T t) (p2:protoExp T' t') (l: nat)
   : (message T) + {(~ (Dual p1 p2))}.
-                    case_eq p1. case_eq p2. intros. apply inright. unfold DualT. unfold not. trivial. intros. assert ({t0 = t2} + {t0 <> t2}). apply (eq_type_dec t0 t2). destruct H1. subst. clear H. clear H0. assert (message T1 + {~ Dual p0 (p m)}). apply (runProto' p'0 p' T1 T0 p0 (p m) (protoTypeLength p'0)). destruct X. apply inleft. exact m0. apply inright. intros. unfold Dual. simpl. unfold Dual in n. unfold not in n. unfold not.  intros. destruct H.  apply n in H0.  assumption. apply inright. unfold Dual. simpl. unfold not. unfold not in n. intros. destruct H1. symmetry in H1. apply n in H1.  assumption. intros. apply inright. unfold Dual. simpl. unfold not. trivial. intros. apply inright. unfold Dual. unfold not. trivial. intros. apply inright. unfold Dual. unfold not. trivial. destruct p2. intros. assert ({t0 = t2} + {t0 <> t2}). apply (eq_type_dec t0 t2). destruct H0. subst. assert (message T1 + {~ Dual (p m) p2 }). apply (runProto' p'0 p' T1 T0 (p m) p2 (protoTypeLength p'0)). destruct X. apply inleft. exact m0. apply inright. intros. unfold Dual. simpl. unfold Dual in n. unfold not in n. unfold not.  intros. destruct H0.  apply n in H1.  assumption. apply inright. unfold Dual. simpl. unfold not. unfold not in n. intros. destruct H0. symmetry in H0. apply n in H0.  assumption. intros. apply inright. unfold Dual. unfold not. trivial. intros.  apply inright. intros. unfold not. intros. inversion H0. intros. apply inright. unfold not. intros. inversion H0. intros. apply inright. unfold not. intros. inversion H0.  intros. destruct p2. destruct b. apply inright. unfold not. intros. inversion H0. apply inright. unfold not. intros. inversion H0. apply inright. unfold not. intros. inversion H0. apply inright. unfold not. intros. inversion H0. destruct b.
+Proof.
+  case_eq p1; case_eq p2; intros;
+  (* Eliminate all un-interesting cases (20 of the 25 subgoals!) *)
+  try (right; unfold not; intros; contradiction).
 
-                    unfold Dual. assert ({DualT r r0} + {~ DualT r r0}). apply (DualT_dec r r0). assert ({DualT s s0} + {~ DualT s s0}). apply (DualT_dec s s0). destruct H0. destruct H1. destruct (runProto' r r0 R R0 p p2_1 (protoTypeLength r0)). left. exact m. unfold not in n. unfold Dual in n. apply n in d. inversion d. right. unfold not. intros. destruct H0. contradiction. right. unfold not. intros. destruct H0. contradiction.
+  (* Send/Receive case *)
+  destruct (eq_type_dec t0 t2). subst. clear H. clear H0. assert (message T1 + {~ Dual p0 (p m)}). apply (runProto' p'0 p' T1 T0 p0 (p m) (protoTypeLength p'0)). destruct X; try (right; unfold not; intros HH; inversion HH; contradiction). apply inleft. exact m0. right. unfold not. intros HH. inversion HH. symmetry in H1. contradiction.
 
-                    unfold Dual. assert ({DualT s s0} + {~ DualT s s0}). apply (DualT_dec s s0). assert ({DualT r r0} + {~ DualT r r0}). apply (DualT_dec r r0). destruct H0. destruct H1. destruct (runProto' s s0 S S0 p0 p2_2 (protoTypeLength s0)). left. exact m. unfold not in n. unfold Dual in n. apply n in d. inversion d. right. unfold not. intros. destruct H0. contradiction. right. unfold not. intros. destruct H0. contradiction. apply inright. intros. unfold not. intros. inversion H0. intros.
+  (* Receive/Send case *)
+  destruct (eq_type_dec t0 t2). subst. clear H. clear H0. assert (message T1 + {~ Dual (p0 m) p }). apply (runProto' _ _ _ _ (p0 m) p (protoTypeLength p'0)). destruct X; try (right; unfold not; intros HH; inversion HH; contradiction). apply inleft. exact m0. right. unfold not. intros HH. inversion HH. symmetry in H1. contradiction.
 
-                    destruct p2. right. unfold not. intros. inversion H0. right. unfold not. intros. inversion H0. destruct b. unfold Dual. assert ({DualT r r0} + {~ DualT r r0}). apply (DualT_dec r r0). assert ({DualT s s0} + {~ DualT s s0}). apply (DualT_dec s s0). destruct H0. destruct H1. destruct (runProto' s s0 S S0 p0 p2_2 (protoTypeLength s0)). left. exact (reither R S m). unfold not in n. unfold Dual in n. apply n in d0. inversion d0. right. unfold not. intros. destruct H0. contradiction. right. unfold not. intros. destruct H0. contradiction. unfold Dual. assert ({DualT r r0} + {~ DualT r r0}). apply (DualT_dec r r0). assert ({DualT s s0} + {~ DualT s s0}). apply (DualT_dec s s0). destruct H0. destruct H1. destruct (runProto' r r0 R R0 p p2_1 (protoTypeLength r0)). left. exact (leither R S m). unfold not in n. unfold Dual in n. apply n in d. inversion d. right. unfold not. intros. destruct H0. contradiction. right. unfold not. intros. destruct H0. contradiction. right. unfold not. intros. inversion H0. right. unfold not. intros. inversion H0. intros. destruct p2. right. unfold not. intros. inversion H0. right. unfold not. intros. inversion H0. right. unfold not. intros. inversion H0. right. unfold not. intros. inversion H0. left. exact m. Defined.
+  (* Choice/Offer case *)
+  destruct b; destruct (DualT_dec r0 r); destruct (DualT_dec s0 s).
+
+    (* true case *)
+    clear H.  clear H0. destruct (runProto' _ _ _ _ p3 p (protoTypeLength r0)); try (right; unfold not; intros; destruct H1; contradiction). left. exact m. unfold not in n. unfold Dual in n. apply n in d. inversion d. right. unfold not. intros. destruct H1. contradiction. right. unfold not. intros. destruct H1. contradiction. right. unfold not. intros. destruct H1. contradiction.
+
+    (* false case *)
+    clear H.  clear H0. destruct (runProto' _ _ _ _ p4 p0 (protoTypeLength s0)); try (right; unfold not; intros; destruct H1; contradiction). left. exact m. unfold not in n. unfold Dual in n. apply n in d0. inversion d0. right. unfold not. intros. destruct H1. contradiction. right. unfold not. intros. destruct H1. contradiction. right. unfold not. intros. destruct H1. contradiction.
+
+  (* Offer/Choice case *)
+  destruct b; destruct (DualT_dec r0 r); destruct (DualT_dec s0 s).
+
+    (* true case *)
+    clear H.  clear H0. destruct (runProto' _ _ _ _ p3 p (protoTypeLength r0)); try (right; unfold not; intros; destruct H1; contradiction). left. exact (leither _ _ m). unfold not in n. unfold Dual in n. apply n in d. inversion d. right. unfold not. intros. destruct H1. contradiction. right. unfold not. intros. destruct H1. contradiction. right. unfold not. intros. destruct H1. contradiction.
+
+    (* false case *)
+    clear H.  clear H0. destruct (runProto' _ _ _ _ p4 p0 (protoTypeLength s0)); try (right; unfold not; intros; destruct H1; contradiction). left. exact (reither _ _  m). unfold not in n. unfold Dual in n. apply n in d0. inversion d0. right. unfold not. intros. destruct H1. contradiction. right. unfold not. intros. destruct H1. contradiction. right. unfold not. intros. destruct H1. contradiction.
+
+  (* Return case *)
+  left. exact m0. Defined.
 
   
 Definition runProto {t t':protoType} {T T':type} (p1:protoExp T t) (p2:protoExp T' t')
