@@ -137,9 +137,9 @@ Inductive type : Type :=
 Inductive message : type -> Type :=
 | basic : nat -> message Basic
 | key : keyType -> message Key
-| encrypt : forall t, message t -> keyType -> message (Encrypt t)
+| encrypt {t:type} : message t -> keyType -> message (Encrypt t)
 | hash : forall t, message t -> message (Hash t)
-| pair : forall t1 t2, message t1 -> message t2 -> message (Pair t1 t2)
+| pair {t1 t2:type} : message t1 -> message t2 -> message (Pair t1 t2)
 | leither : forall t1 t2, message t1 -> message (Either t1 t2)
 | reither : forall t1 t2, message t2 -> message (Either t1 t2)
 | bad : forall t1,  message t1.
@@ -204,7 +204,7 @@ Proof.
   reflexivity.
 Qed.
 
-Theorem is_not_decryptable_pair: forall t u n m k, is_not_decryptable (pair t u n m) k.
+Theorem is_not_decryptable_pair: forall t1 t2 n m k, is_not_decryptable (pair (t1:=t1) (t2:=t2)  n m) k.
 Proof.
   intros.
   reflexivity.
@@ -274,14 +274,14 @@ Abort. *)
   end).
 *)
 
-Eval compute in decrypt(encrypt Basic (basic 1) (symmetric 1)) (symmetric 1).
+Eval compute in decrypt(encrypt (basic 1) (symmetric 1)) (symmetric 1).
 
-Eval compute in decrypt(encrypt Basic (basic 1) (symmetric 1)) (symmetric 2).
+Eval compute in decrypt(encrypt (basic 1) (symmetric 1)) (symmetric 2).
 
 (** Generate a signature using encryption and hash *)
 
 Definition sign{t:type}(m:message t)(k:keyType) :=
-  (pair t (Encrypt (Hash t)) m (encrypt (Hash t) (hash t m) k)).
+  (pair m (encrypt (hash t m) k)).
 
 Eval compute in sign (basic 1) (public 1).
 
@@ -317,12 +317,12 @@ Proof.
    | subst; right; unfold not; intros; inversion H; contradiction ]
   | [ |- _ ] => right; unfold not; intros; inversion H 
   end.
-  Defined.
+Defined.
 
 Theorem message_eq_lemma: forall t, forall m:(message t), forall m':(message t), forall k k',
     {m=m'}+{m<>m'} ->
     {k=k'}+{k<>k'} ->
-    {(encrypt t m k)=(encrypt t m' k')}+{(encrypt t m k) <> (encrypt t m' k')}.
+    {(encrypt m k)=(encrypt m' k')}+{(encrypt m k) <> (encrypt m' k')}.
 Proof.
   intros.
   destruct H; destruct H0.
