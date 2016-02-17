@@ -131,26 +131,26 @@ Definition protoLength {t:protoType} {T:type} (p1:protoExp T t) : nat := (*proto
 
 (*Eval compute in protoTypeLength (Send Basic (Eps Basic)). *)
 
-Fixpoint DualT' (t t':protoType) : Prop :=
+Fixpoint DualT (t t':protoType) : Prop :=
   match t with
   | Send p1T p1' =>
     match t' with
-    | Receive p2T p2' => (p1T = p2T) /\ (DualT' p1' p2')    
+    | Receive p2T p2' => (p1T = p2T) /\ (DualT p1' p2')    
     | _ => False
     end
   | Receive p1T p1' =>
     match t' with
-    | Send p2T p2' => (p1T = p2T) /\ (DualT' p1' p2')                                
+    | Send p2T p2' => (p1T = p2T) /\ (DualT p1' p2')                                
     | _ => False
     end
   | Choice p1' p1'' =>
     match t' with
-    | Offer p2' p2'' => (DualT' p1' p2') /\ (DualT' p1'' p2'')                                                             
+    | Offer p2' p2'' => (DualT p1' p2') /\ (DualT p1'' p2'')                                                             
     | _ => False
     end
   | Offer p1' p1'' =>
     match t' with
-    | Choice p2' p2'' => (DualT' p1' p2') /\ (DualT' p1'' p2'')                                                               
+    | Choice p2' p2'' => (DualT p1' p2') /\ (DualT p1'' p2'')                                                               
     | _ => False
     end
   | Eps _ =>
@@ -159,8 +159,6 @@ Fixpoint DualT' (t t':protoType) : Prop :=
     | _ => False
     end
   end.
-
-Definition DualT (t t':protoType) : Prop := DualT' t t'.
 
   (*repeat match goal with        
   (*| [ |- {DualT (?T _ _) (?T _ _)} + {~ DualT (?T _ _) (?T _ _)} ]
@@ -193,50 +191,29 @@ Proof.
   
 Defined.
 
-Definition Dual {t t':protoType} {T T':type} (p1:protoExp T t) (p2:protoExp T' t') : Prop := DualT t t'.           
+Definition Dual {t t':protoType} {T T':type} (p1:protoExp T t) (p2:protoExp T' t') : Prop := DualT t t'.        
 
+Fixpoint runProto'' {t t':protoType} {T T':type} (p1:protoExp T t) (p2:protoExp T' t')  (*(l: nat) *)
+  : (Dual p1 p2) -> (message T).
+Proof. intros; destruct p1; destruct p2; try inversion H.
 
-Fixpoint runProto'' {t t':protoType} {T T':type} (p1:protoExp T t) (p2:protoExp T' t') (l: nat)
-  : (message T) + {(~ (Dual p1 p2))}.
-Proof. destruct l. left. exact (bad T).
-  case_eq p1; case_eq p2; intros;
+       subst. apply (runProto'' _ _ _ _ p1 (p m) (*l*)(*(protoExpLength (p m))*)). assumption.
+       subst. apply (runProto'' _ _ _ _ (p m) p2 ). assumption.
+
+       destruct b.
+       apply (runProto'' _ _ _ _ p1_1 p2_1 ). assumption.
+       apply (runProto'' _ _ _ _ p1_2 p2_2 ). assumption.
        
-  (* Eliminate all un-interesting cases (20 of the 25 subgoals!) *)
-  try (right; unfold not; intros; contradiction).
+       destruct b.
+       assert (message R).
+       apply (runProto'' _ _ _ _ p1_1 p2_1 ). assumption. exact (leither _ _ X).
+       assert (message S).
+       apply (runProto'' _ _ _ _ p1_2 p2_2 ). assumption. exact (reither _ _ X).
 
-  (* Send/Receive case *)
-  destruct (eq_type_dec t0 t2). subst. clear H. clear H0. assert (message T1 + {~ Dual p0 (p m)}). apply (runProto'' p'0 p' T1 T0 p0 (p m) l(*(protoExpLength (p m))*)). destruct X; try (right; unfold not; intros HH; inversion HH; contradiction). apply inleft. exact m0. right. unfold not. intros HH. inversion HH. symmetry in H1. contradiction.
+       exact m. Defined.
 
-  (* Receive/Send case *)
-  destruct (eq_type_dec t0 t2). subst. clear H. clear H0. assert (message T1 + {~ Dual (p0 m) p }). apply (runProto'' _ _ _ _ (p0 m) p (*(protoExpLength (p0 m))*) l). destruct X; try (right; unfold not; intros HH; inversion HH; contradiction). apply inleft. exact m0. right. unfold not. intros HH. inversion HH. symmetry in H1. contradiction.
-
-  (* Choice/Offer case *)
-  destruct b; destruct (DualT_dec r0 r); destruct (DualT_dec s0 s).
-
-    (* true case *)
-    clear H.  clear H0. destruct (runProto'' _ _ _ _ p3 p (*(protoExpLength p3)*) l); try (right; unfold not; intros; destruct H1; contradiction). left. exact m. unfold not in n. unfold Dual in n. apply n in d. inversion d. right. unfold not. intros. destruct H1. contradiction. right. unfold not. intros. destruct H1. contradiction. right. unfold not. intros. destruct H1. contradiction.
-
-    (* false case *)
-    clear H.  clear H0. destruct (runProto'' _ _ _ _ p4 p0 (*(protoExpLength p4)*) l); try (right; unfold not; intros; destruct H1; contradiction). left. exact m. unfold not in n. unfold Dual in n. apply n in d0. inversion d0. right. unfold not. intros. destruct H1. contradiction. right. unfold not. intros. destruct H1. contradiction. right. unfold not. intros. destruct H1. contradiction.
-
-  (* Offer/Choice case *)
-  destruct b; destruct (DualT_dec r0 r); destruct (DualT_dec s0 s).
-
-    (* true case *)
-    clear H.  clear H0. destruct (runProto'' _ _ _ _ p3 p (*(protoExpLength p3)*) l); try (right; unfold not; intros; destruct H1; contradiction). left. exact (leither _ _ m). unfold not in n. unfold Dual in n. apply n in d. inversion d. right. unfold not. intros. destruct H1. contradiction. right. unfold not. intros. destruct H1. contradiction. right. unfold not. intros. destruct H1. contradiction.
-
-    (* false case *)
-    clear H.  clear H0. destruct (runProto'' _ _ _ _ p4 p0 (*(protoExpLength p4)*) l); try (right; unfold not; intros; destruct H1; contradiction). left. exact (reither _ _  m). unfold not in n. unfold Dual in n. apply n in d0. inversion d0. right. unfold not. intros. destruct H1. contradiction. right. unfold not. intros. destruct H1. contradiction. right. unfold not. intros. destruct H1. contradiction.
-
-  (* Return case *)
-    left. exact m0.
-
-   
-Defined.
-
-  
 Definition runProto' {t t':protoType} {T T':type} (p1:protoExp T t) (p2:protoExp T' t')
-  : (message T) + {(~ (Dual p1 p2))} := runProto'' p1 p2 (1 + (max (protoLength p1) (protoLength p2))).
+  : (Dual p1 p2) -> (message T) := runProto'' p1 p2 (*(1 + (max (protoLength p1) (protoLength p2)))*). Check runProto'.
 
 Fixpoint DualTSymm {t t':protoType} : DualT t t' -> DualT t' t.
 Proof.
@@ -247,21 +224,20 @@ Proof.
 
 Hint Resolve DualTSymm.
 
+Lemma DualSymm {t t':protoType} {T T':type} {p1:protoExp T t} {p2:protoExp T' t'} :
+  (Dual p1 p2) -> (Dual p2 p1). intros. unfold Dual in H. apply DualTSymm in H. assumption. Defined.
+
 Lemma notDualSymm {t t':protoType} {T T':type} {p1:protoExp T t} {p2:protoExp T' t'} : (~ Dual p1 p2) -> (~ Dual p2 p1).
 Proof. 
   intros. unfold not. intros. apply DualTSymm in H0. unfold Dual in H. contradiction. Qed.
 
   
-Definition runProto {t t':protoType} {T T':type} (p1:protoExp T t) (p2:protoExp T' t') : ((message T * message T') + {~ (Dual p1 p2)}).
-  refine(
-  match (runProto' p1 p2) with
-  | inleft m =>
-    match (runProto' p2 p1) with
-    | inleft m' => inleft (m, m')
-    | inright p => inright (notDualSymm p)
-    end
-  | inright p => inright p           
-  end). Defined.
+Definition runProto {t t':protoType} {T T':type} (p1:protoExp T t) (p2:protoExp T' t') : (Dual p1 p2) -> (message T * message T') :=
+  fun pf =>
+    let x := runProto' p1 p2 pf in
+    let y := runProto' p2 p1 (DualTSymm pf) in
+    (x , y).
+
 
 Definition proto3 :=
   send (basic 42);
@@ -271,7 +247,9 @@ Definition proto3' :=
   x <- receive;
   ReturnC (t:=Basic) x. Check proto3'.
 
-Eval compute in (runProto proto3' proto3).
+Example dual33' : Dual proto3 proto3'. unfold Dual. simpl. auto. Defined.
+
+Eval compute in (runProto proto3' proto3 dual33').
 
 Definition incPayload (m:message Basic) : (message Basic) :=
   match m with
@@ -291,9 +269,9 @@ Definition proto5 :=
   ReturnC (t:=Basic) x.
 Check proto5.
 
-Example dual45 : Dual proto4 proto5. unfold Dual. simpl. auto. Qed.
+Example dual45 : Dual proto4 proto5. unfold Dual. simpl. auto. Defined.
 
-Eval compute in runProto proto4 proto5.
+Eval compute in runProto proto4 proto5 dual45.
 
 Definition proto6 (b:bool) :=
   choice b EpsC
@@ -303,11 +281,12 @@ Definition proto7 :=
   offer EpsC
         proto4. Check proto7.
 
-Example dual67 : Dual (proto6 false) proto7. unfold Dual. simpl. auto. Qed.
+Example dual67 : forall b, Dual (proto6 b) proto7. unfold Dual. simpl. auto. Defined.
 
-Eval compute in (runProto (proto6 false) proto7).
-Eval compute in (runProto (proto6 true) proto7).
+Eval compute in (runProto (proto6 false) proto7 (dual67 false)).
+Eval compute in (runProto (proto6 true) proto7 (dual67 true)).
 
+Example notDual35 : ~ (Dual proto3  proto5). auto. Defined.
 Eval compute in (runProto proto5 proto3).
 
 
@@ -321,18 +300,22 @@ Definition bPri := (private 2).
 Definition aPriBad := (private 5).
 Definition bPriBad := (private 6).
 
+Definition aNonce := (basic 1).
+Definition bNonce := (basic 2).
+                    
+
 Definition Needham_A (myPri theirPub:keyType) :=
-  send (encrypt (basic 1) theirPub);
+  send (encrypt aNonce theirPub);
   x <- receive; (* x : Encrypt (Pair Basic Basic) *) 
   let y := decryptM x myPri in (* y : Pair Basic Basic *) 
   let y' := (pairSnd (t1:=Basic) (t2:=Basic) y) in 
   send (encrypt y' theirPub);
-  ReturnC (t:= (Pair Basic Basic)) y. Check Needham_A.
+  ReturnC (t:= Pair Basic Basic) y. Check Needham_A.
 
 Definition Needham_B (myPri theirPub:keyType) :=
   x <- receive; (* x : Encrypt Basic *)
   let y := decryptM x myPri in (* y : Basic *)
-  send (encrypt (pair y (basic 2)) theirPub);
+  send (encrypt (pair y bNonce) theirPub);
   z <- receive; (* z : Encrypt Basic *)
   let z' := decryptM z myPri in    (* z' : Basic *)
   ReturnC (t:= Pair Basic (Basic)) (pair y z'). Check Needham_B.
@@ -340,29 +323,39 @@ Definition Needham_B (myPri theirPub:keyType) :=
 
 
 Example DualNeedham {a b c d:keyType} : Dual (Needham_A a b) (Needham_B c d).
-Proof. unfold Dual; simpl. repeat( split;trivial). Qed.
+Proof. unfold Dual; simpl. repeat( split;trivial). Defined.
 
 Definition Needham_A_good := (Needham_A aPri bPub).
 Definition Needham_B_good := (Needham_B bPri aPub).
 
-Eval compute in runProto Needham_A_good Needham_B_good.
+Eval compute in runProto Needham_A_good Needham_B_good DualNeedham.
 
 Definition Needham_A_badAuth := (Needham_A aPriBad bPub).
 Definition Needham_A_badEncrypt := (Needham_A aPri bPubBad).
 Definition Needham_B_badAuth := (Needham_B bPriBad aPub).
 Definition Needham_B_badEncrypt := (Needham_B bPri aPubBad).
 
-Eval compute in runProto Needham_A_good Needham_B_badAuth.
-Eval compute in runProto Needham_A_good Needham_B_badEncrypt.
+(* A is good, B is an intruder.
+   A returns (bad, basic 2).  The bad propogates from the fact that B is
+     unable to decrypt A's first sent message(A's nonce), and hence is 
+     unable to send it back to A.
+   B returns (bad, bad).  The first bad is because B cannot decrypt A's
+     first message.  The second bad is because B cannot decrypt A's second
+     sent message (A sending back the nonce it received from B). *)
+Eval compute in runProto Needham_A_good Needham_B_badAuth DualNeedham.
 
-Eval compute in runProto Needham_B_good Needham_A_badAuth.
-Eval compute in runProto Needham_B_good Needham_A_badEncrypt.
+(* Are the badEncrypt cases worth demonstrating??
+   i.e: Do we care about results when encrypting with the wrong pub key? *)
+Eval compute in runProto Needham_A_good Needham_B_badEncrypt DualNeedham.
 
-Eval compute in runProto Needham_A_badAuth Needham_B_badAuth.
-Eval compute in runProto Needham_A_badAuth Needham_B_badEncrypt.
+Eval compute in runProto Needham_A_badAuth Needham_B_good DualNeedham. 
+Eval compute in runProto Needham_A_badEncrypt Needham_B_good DualNeedham.
 
-Eval compute in runProto Needham_A_badEncrypt Needham_B_badAuth.
-Eval compute in runProto Needham_A_badEncrypt Needham_B_badEncrypt.
+Eval compute in runProto Needham_A_badAuth Needham_B_badAuth DualNeedham.
+Eval compute in runProto Needham_A_badAuth Needham_B_badEncrypt DualNeedham.
+
+Eval compute in runProto Needham_A_badEncrypt Needham_B_badAuth DualNeedham.
+Eval compute in runProto Needham_A_badEncrypt Needham_B_badEncrypt DualNeedham.
 
 Definition protoAuth1 (theirPub:keyType) :=
   let m1 := encrypt (basic 1) theirPub in
@@ -374,14 +367,32 @@ Definition protoAuth2 (myPri:keyType) :=
   x <- receive;
   let m1 := decryptM x myPri in
   send m1;
-  ReturnC (t:=Basic) m1. Check protoAuth2.
+    ReturnC (t:=Basic) m1. Check protoAuth2.
 
-Definition protoAuthGoodResult :=  runProto (protoAuth1 (public 2)) (protoAuth2 (private 2)). Eval compute in protoAuthGoodResult.
+Example dualProtoAuth12 {k k':keyType} : Dual (protoAuth1 k) (protoAuth2 k').
+Proof. unfold Dual; simpl. repeat( split;trivial). Defined.
 
-Example uniqueAuth : forall k,
-    (runProto (protoAuth1 (public 2)) (protoAuth2 k)) = protoAuthGoodResult
-    -> (k = (private 2)).
+Eval compute in runProto (protoAuth1 (public 2))
+                         (protoAuth2 (private 2))
+                         dualProtoAuth12.
+Eval compute in runProto' (protoAuth1 (public 2))
+                         (protoAuth2 (private 2))
+                         dualProtoAuth12.
+
+Example badAuth : forall k k',
+    (k <> inverse k') ->
+    (runProto' (protoAuth1 k) (protoAuth2 k') dualProtoAuth12)
+    = bad Basic.
 Proof.
-  intros. destruct protoAuthGoodResult. inversion H. destruct (eq_key_dec k (private 2)). assumption. Abort.
+  intros. cbv. Abort.
+
+Example uniqueAuth : forall k k',
+    (runProto' (protoAuth1 k) (protoAuth2 k') dualProtoAuth12)
+      = (basic 1)
+    -> (k = (inverse k')).
+Proof.
+  intros. destruct (is_inverse k k').
+  assumption. cbv in H. Abort.
+  
        
 End session.
