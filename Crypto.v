@@ -96,21 +96,21 @@ Theorem inverse_injective : forall k1 k2, inverse k1 = inverse k2 -> k1 = k2.
 Proof.
   intros.
   destruct k1; destruct k2; simpl in H; try (inversion H); try (reflexivity).
-Qed.
+Defined.
 
 Hint Resolve inverse_injective.
 
 Theorem inverse_inverse : forall k, inverse (inverse k) = k.
 Proof.
   intros. destruct k; try reflexivity.
-Qed.
+Defined.
 
 Hint Resolve inverse_inverse.
 
 Theorem inverse_surjective : forall k, exists k', (inverse k) = k'.
 Proof.
   intros. exists (inverse k). auto.
-Qed.
+Defined.
 
 Hint Resolve inverse_surjective.
 
@@ -119,7 +119,26 @@ Theorem inverse_bijective : forall k k',
     k = k' /\ forall k, exists k'', inverse k = k''.
 Proof.
   auto.
-Qed.
+Defined.
+
+Lemma infoPri : forall k' n', (k' <> (private n')) ->
+                         exists n, (k' = (public n)) \/
+                          ((k' = (symmetric n)) \/
+                         exists n, (k' = (private n)) /\ (n <> n')).
+Proof.
+  intros. destruct k'. destruct k. exists 0. right. left. reflexivity.
+  exists (S k). right. left. reflexivity. destruct (eq_nat_dec k n'). subst. unfold not in H. assert (private n' = private n'). reflexivity. apply H in H0. inversion H0. exists 0. right. right. exists k. split. reflexivity. assumption. exists k. left. reflexivity.
+Defined.
+
+Lemma inverse_info : forall k k',
+    k = inverse k' ->
+    exists n, k = symmetric n /\  k' = symmetric n \/
+    exists n, (k = public n) /\ (k' = private n) \/
+                          exists n, (k = private n) /\ (k' = public n).
+Proof.
+  intros. destruct k; destruct k'; try inversion H. inversion H. exists k0. left.  split; reflexivity. exists 0. right. exists 0. right. exists k0. split; reflexivity. exists 0. right. exists k0. left. split; reflexivity. 
+Defined.
+
 
 Inductive type : Type :=
 | Basic : type
@@ -144,20 +163,57 @@ Inductive message : type -> Type :=
 | reither : forall t1 t2, message t2 -> message (Either t1 t2)
 | bad : forall t1,  message t1.
 
+Definition getP1Type (t:type):type :=
+  match t with
+  | Pair t1 t2 => t1
+  | _ => t
+  end.
+
+Definition getP2Type (t:type):type :=
+  match t with
+  | Pair t1 t2 => t2
+  | _ => t
+  end.
+
+Definition pairFst{t1 t2: type} (m:message (Pair t1 t2)) : message t1 :=
+  match m in message t' return message (getP1Type t') with 
+  | pair  m1 _ => m1
+  | bad _ => bad _ (*(getP1Type tb1) *)
+  | _ => bad _                
+  end.
+
+Definition pair1 := pair (basic 1) (basic 2).
+Eval compute in pairFst pair1.
+Definition pair1' := pair (bad Basic) (basic 2).
+Eval compute in pairFst pair1'.
+Definition pair1'' := pair  (basic 1) (bad Basic).
+Eval compute in pairFst pair1''.
+
+Definition pairSnd{t1 t2: type} (m:message (Pair t1 t2)) : message t2 :=
+  match m in message t' return message (getP2Type t') with
+  | pair _ m2 => m2
+  | bad _ => bad _ 
+  | _ => bad _                
+  end.
+
+Definition pair2 := pair (basic 1) (basic 2).
+Eval compute in pairSnd pair2.
+Definition pair2' := pair (basic 1) (bad Basic).
+Eval compute in pairSnd pair2'.
 
 (** Predicate that determines if a message cannot be decrypted.  Could be
   that it is not encrypted to begin with or the wrong key is used. *)
 
 Definition is_not_decryptable{t:type}(m:message t)(k:keyType):Prop :=
   match m with
-  | encrypt t m' k' => k <> inverse k'
+  | encrypt m' k' => k <> inverse k'
   (*| bad _ => False     *)                         
   | _ => True
   end.
 
 Definition is_decryptable{t:type}(m:message t)(k:keyType):Prop :=
   match m with
-  | encrypt t m' k' => k = inverse k'
+  | encrypt m' k' => k = inverse k'
   (*| bad _ => True*)                                
   | _ => False
   end.
@@ -174,9 +230,9 @@ Proof.
   split. destruct m; try (tauto).
   simpl. intros. assumption.
   intros. destruct m; try (reflexivity).
-  simpl. tauto. Qed.
+  simpl. tauto. Defined.
   (*simpl. unfold not in H. simpl in H. apply H. trivial. 
-Qed. *)
+Defined. *)
 
 (** [decrypt] returns either a decrypted message or a proof of why the message
   cannot be decrypted.  Really should be able to shorten the proof. *)
@@ -190,46 +246,50 @@ Theorem is_not_decryptable_basic: forall n k, is_not_decryptable (basic n) k.
 Proof.
   intros.
   reflexivity.
-Qed.
+Defined.
 
 Theorem is_not_decryptable_key: forall k k', is_not_decryptable (key k) k'.
 Proof.
   intros.
   reflexivity.
-Qed.  
+Defined.  
 
 Theorem is_not_decryptable_hash: forall t n k, is_not_decryptable (hash t n) k.
 Proof.
   intros.
   reflexivity.
-Qed.
+Defined.
 
 Theorem is_not_decryptable_pair: forall t1 t2 n m k, is_not_decryptable (pair (t1:=t1) (t2:=t2)  n m) k.
 Proof.
   intros.
   reflexivity.
-Qed.
+Defined.
 
 Theorem is_not_decryptable_bad: forall t k, is_not_decryptable (bad t) k.
 Proof.
   intros.
   reflexivity.
-Qed.
+Defined.
 
 Definition decrypt_type(t:type):type :=
   match t with
   | Encrypt t' => t'
   | _ => t
   end.
-                 
 
-Fixpoint decrypt{t:type}(m:message (Encrypt t))(k:keyType):message t+{(is_not_decryptable m k)}.
-  refine match m in message t' return message (decrypt_type t') + {(is_not_decryptable m k)} with
+Inductive decryptable {t:type} : (message (Encrypt t)) -> keyType -> Prop :=
+| cDecryptable {m':message t} {j:keyType} : decryptable (encrypt m' j) (inverse j).
+
+Fixpoint decrypt{t:type}(m:message (Encrypt t))(k:keyType):
+  (message t * is_decryptable m k)+
+  {(is_not_decryptable m k)}.
+  refine match m in message t' return (message (decrypt_type t') * is_decryptable m k) + {(is_not_decryptable m k)} with
          | basic _ => inright _ _
          | key _ => inright _ _
-         | encrypt t m' j => (if (is_inverse k j) then (inleft _ m') else (inright _ _ ))
+         | encrypt m' j => (if (is_inverse k j) then (inleft _ (m',_)) else (inright _ _ ))
          | hash _ _ => inright _ _
-         | pair _ _ _ _ => inright _ _
+         | pair  _ _ => inright _ _
          | leither _ _ _ => inright _ _
          | reither _ _ _ => inright _ _                           
          | bad _ => inright _ _
@@ -238,19 +298,104 @@ Proof.
   reflexivity.
   reflexivity.
   simpl. assumption.
+  simpl. assumption.
   reflexivity.
   reflexivity.
   reflexivity.
   reflexivity.
-  (*exact (bad t1).n*)
   reflexivity.
 Defined.
+(*
+Fixpoint decrypt{t:type}(m:message (Encrypt t))(k:keyType):(message t)+{(is_not_decryptable m k)}.
+  refine match m in message t' return (message (decrypt_type t') + {(is_not_decryptable m k)}) with
+         | basic _ => inright _ _
+         | key _ => inright _ _
+         | encrypt m' j => (if (is_inverse k j) then (inleft _) else (inright _ _ ))
+         | hash _ _ => inright _ _
+         | pair  _ _ => inright _ _
+         | leither _ _ _ => inright _ _
+         | reither _ _ _ => inright _ _                           
+         | bad _ => inright _ _
+         end.
+Proof.
+  reflexivity.
+  reflexivity.
+  simpl. assumption.
+  simpl. assumption.
+  reflexivity.
+  reflexivity.
+  reflexivity.
+  reflexivity.
+  reflexivity.
+Defined.
+ *)
 
-Definition decryptM{t:type} (m:message (Encrypt t)) (k:keyType):message t :=
+Definition encrypted_with {t:type}(m:message (Encrypt t)) : keyType :=
+  match m with
+  | encrypt m' j => j
+  | _ => (public 0)
+  end.
+
+Eval compute in encrypted_with (bad (Encrypt Basic)).
+Eval compute in encrypted_with (encrypt _ (public 33)).
+
+Definition decrypt'{t:type}(m:message (Encrypt t))(k:keyType) : (k = inverse (encrypted_with m)) -> message t.
+  refine
+  ( fun pf => 
+  match m with
+         | basic _ => _
+         | key _ => _
+         | encrypt m' j => _
+         | hash _ _ =>  _
+         | pair  _ _ =>  _
+         | leither _ _ _ => _
+         | reither _ _ _ => _                           
+         | bad _ =>  _
+  end ).
+  (exact (fun (x:Type) => (fun x => x))).
+  (exact (fun (x:Type) => (fun x => x))).
+  exact m'.
+  (exact (fun (x:Type) => (fun x => x))).
+  (exact (fun (x:Type) => (fun x => x))).
+  (exact (fun (x:Type) => (fun x => x))).
+  (exact (fun (x:Type) => (fun x => x))).
+  destruct t0.
+  (exact (fun (x:Type) => (fun x => x))).
+  (exact (fun (x:Type) => (fun x => x))).
+  exact (bad t0).
+  (exact (fun (x:Type) => (fun x => x))).
+  (exact (fun (x:Type) => (fun x => x))).
+  (exact (fun (x:Type) => (fun x => x))). Defined.
+
+  
+Definition almostMessage := decrypt' (encrypt (basic 0) (public 1)) (private 1).
+
+Example same_inverse : forall n, (private n) = inverse (public n).
+Proof.
+  intros. reflexivity. Qed.
+
+Eval compute in almostMessage (same_inverse 1).
+
+Definition decryptM {t:type} (m:message (Encrypt t)) (k:keyType):message t :=
+  match decrypt m k with
+  | inleft (m',_) => m'
+  | inright _ => bad t
+  end.
+
+(*
+Definition decryptM {t:type} (m:message (Encrypt t)) (k:keyType):message t :=
   match decrypt m k with
   | inleft m' => m'
   | inright _ => bad t
   end.
+ *)
+
+Definition enc1 := encrypt (basic 42) (public 1). Check enc1.
+Definition enc2 := encrypt enc1 (public 2).
+Eval compute in decryptM enc1 (private 1).
+Eval compute in decryptM enc1 (private 0).
+Eval compute in decryptM enc2 (private 2).
+Eval compute in decryptM (decryptM enc2 (private 2)) (private 1).
 
 (*Fixpoint decrypt'{t:type}(m:message (Encrypt t))(k:keyType):message t+{(is_not_decryptable m k)}.
 refine
@@ -429,13 +574,13 @@ Print encrypt.
 Example sign_1_ex: is_signed (pair (basic 1) (encrypt (hash (basic 1)) (private sf1))) (public 1).
 Proof.
   simpl. tauto.
-Qed.
+Defined.
 
 Example sign_2_ex: not (is_signed (pair (basic 1) (encrypt (hash (basic 1)) (private 1))) (public 2)).
 Proof.
   unfold not. intros.
   simpl in H. inversion H. inversion H1.
-Qed.
+Defined.
 
 Theorem check_dec: forall m:message, forall k, {(is_signed m k)}+{not (is_signed m k)}.
 Proof.
@@ -465,7 +610,7 @@ Eval compute in check_dec (sign (basic 1) (private 1)) (public 2). *)
 Theorem m2 : forall P Q R: Prop, P -> Q -> R -> Q.
 Proof.
   intros. match goal with | [ B : _ |- _ ] => exact B end.
-Qed.                                                 
+Defined.                                                 
 
 (** [notHyp] determines if [P] is in the assumption set of a proof state.
   The first match case simply checks to see if [P] matches any assumption and
