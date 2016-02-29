@@ -1,4 +1,7 @@
 Require Export Crypto.
+Require Import Program.
+Require Import Arith.
+Require Import Eqdep_dec.
 
 Inductive protoType : Type :=
 | Send : type -> protoType -> protoType
@@ -171,6 +174,72 @@ Definition nextRtype {T T':type} {t t':protoType} (p1:protoExp T t) (p2:protoExp
   intros; destruct p1; destruct p2; try inversion H. exact T. exact T. destruct b. exact R. exact S. destruct b. exact R. exact S. exact t0.
 Defined.
 
+Fixpoint nextRtype' {T T':type} {t t':protoType} (p1:protoExp T t) (p2:protoExp T' t') : type.
+  refine (
+  match p1 with
+  | SendC _ _ =>
+    match p2 with
+    | ReceiveC f => _ 
+    | _ => _
+    end
+  | ReceiveC _ =>
+    match p2 with
+    | SendC _ _ => _                            
+    | _ => _
+    end
+  | ChoiceC b _ _ => match p2 with
+    | OfferC _ _ => _                                                         
+    | _ => _
+    end
+  | OfferC _ _ =>
+    match p2 with
+    | ChoiceC b _ _ => _
+    | _ => _
+    end
+  | ReturnC _ => _
+  end).
+  exact T.
+  destruct (eq_type_dec t0 t2).
+    subst. apply (nextRtype' _ _ _ _ p0 (f m)).
+    exact T.
+  exact T.
+  exact T.
+  exact T.
+ 
+  destruct (eq_type_dec t0 t2).
+    subst. apply (nextRtype' _ _ _ _ (p0 m) p4).
+    exact T.
+  exact T.
+  exact T.
+  exact T.
+  exact T.
+
+  exact T.
+  exact T.
+  exact T.
+  destruct b.
+    apply (nextRtype' _ _ _ _ p3 p7).
+    apply (nextRtype' _ _ _ _ p4 p8).
+  exact T.
+    
+  exact T.
+  exact T.
+  destruct b.
+    apply (nextRtype' _ _ _ _ p3 p7).
+    apply (nextRtype' _ _ _ _ p4 p8).  
+  exact T.
+  exact T.
+
+  exact t0.
+Defined.
+
+
+Theorem senRecOnce{t T1 T2:type}{t1 t2:protoType}{p1':protoExp T1 t1} {f : (message t) -> (protoExp T2 t2)} : forall (m:message t),
+    (nextRtype' (SendC m p1') (ReceiveC f)) = (nextRtype' p1' (f m)).
+Proof.
+  intros. simpl. Abort.
+  
+
 Definition runProto'OneStep {t t':protoType} {T T':type} (p1:protoExp T t) (p2:protoExp T' t') (p:Dual p1 p2) : (protoExp (nextRtype p1 p2 p) (nextType p1 p2 p)).
   destruct p1; destruct p2; try inversion p.
 simpl. destruct p. exact p1.
@@ -220,5 +289,79 @@ Fixpoint runProtoMultiStep' {t t':protoType} {T T':type} (p1:protoExp T t) (p2:p
 Definition runProtoMultiStep {t t':protoType} {T T':type} (p1:protoExp T t) (p2:protoExp T' t') : (Dual p1 p2) -> (message T * message T') :=
   fun pf =>
   runProtoMultiStep' p1 p2 (max (protoExpLength p1) (protoExpLength p2)) pf.
-                      
+
+Inductive runProtoR : forall (T T':type), forall (t t':protoType), (protoExp T t) -> (protoExp T' t') -> (message T) -> Prop :=
+  
+| returnR : forall T T' (m:message T) (m':message T'),
+    runProtoR _ _ _ _ (ReturnC m) (ReturnC m') m
+| sendR : forall X Y Y' p1t p2t m'
+            (m:message Y)
+            (f: ((message Y) -> (protoExp Y' p2t)))
+            (p1':protoExp X p1t),
+        runProtoR _ _ _ _ p1' (f m) m' ->
+        runProtoR _ _ _ _ (SendC m p1') (ReceiveC f) m'
+| receiveR : forall X Y Y' p1t p2t m'
+            (m:message Y)
+            (f: ((message Y) -> (protoExp Y' p2t)))
+            (p1':protoExp X p1t),
+            runProtoR _ _ _ _ (f m) p1' m' ->
+            runProtoR _ _ _ _ (ReceiveC f) (SendC m p1') m'
+| choiceRt : forall R R' S S' r r' s s'
+               (r:protoExp R r) (r0:protoExp R' r')
+               (s:protoExp S s) (s0:protoExp S' s')
+               (m:message R) (m':message S),
+    runProtoR _ _ _ _ r r0 m ->
+    runProtoR _ _ _ _ s s0 m' ->
+    runProtoR _ _ _ _ (ChoiceC true r s) (OfferC r0 s0) m
+
+| choiceRf : forall R R' S S' r r' s s'
+               (r:protoExp R r) (r0:protoExp R' r')
+               (s:protoExp S s) (s0:protoExp S' s')
+               (m:message R) (m':message S),
+    runProtoR _ _ _ _ r r0 m ->
+    runProtoR _ _ _ _ s s0 m' ->
+    runProtoR _ _ _ _ (ChoiceC false r s) (OfferC r0 s0) m'
+
+| offerRt : forall R R' S S' r r' s s' m m'
+              (r:protoExp R r) (r0:protoExp R' r')
+              (s:protoExp S s) (s0:protoExp S' s'),
+    runProtoR _ _ _ _ r r0 m ->
+    runProtoR _ _ _ _ s s0 m' ->
+    runProtoR _ _ _ _ (OfferC r s) (ChoiceC true r0 s0) (leither _ _ m)
+
+| offerRf : forall R R' S S' r r' s s' m m'
+              (r:protoExp R r) (r0:protoExp R' r')
+              (s:protoExp S s) (s0:protoExp S' s'),
+    runProtoR _ _ _ _ r r0 m ->
+    runProtoR _ _ _ _ s s0 m' ->
+    runProtoR _ _ _ _ (OfferC r s) (ChoiceC false r0 s0) (reither _ _ m').
+
+
+Example rEx1 : runProtoR _ _ _ _ (ReturnC (basic 1)) (ReturnC (key (public 0))) (basic 1).
+Proof.
+  constructor. Qed.
+
+Definition payload1 := (basic 1).
+Definition payload2 := (key (public 0)).
+
+Definition protoSimple1 :=
+  send payload1;
+  EpsC.
+
+Definition protoSimple2 :=
+  x <- receive;
+  ReturnC (t:=Basic) x.
+
+Example rEx2 : runProtoR _ _ _ _ protoSimple2 protoSimple1 (basic 1).
+Proof. repeat constructor. Qed.
+
+Theorem rIffmulti {t t':protoType} {T T':type} (p1:protoExp T t) (p2:protoExp T' t') (pf:Dual p1 p2) : forall m, runProtoR T T' t t' p1 p2 m -> fst (runProtoMultiStep p1 p2 pf) = m.
+Proof. 
+  intros. destruct p1; destruct p2; destruct pf.
+
+  (*destruct m0; destruct m. destruct n; destruct n0. inversion H. subst.  apply inj_pair2_eq_dec in H11.  apply inj_pair2_eq_dec in H11.  apply inj_pair2_eq_dec in H11.  apply inj_pair2_eq_dec in H12.  apply inj_pair2_eq_dec in H8.  apply inj_pair2_eq_dec in H8.  apply inj_pair2_eq_dec in H7. rewrite <- H11. rewrite <- H8. inversion H3.  apply inj_pair2_eq_dec in H17.  apply inj_pair2_eq_dec in H16.  apply inj_pair2_eq_dec in H14.  subst. inversion H3.  apply inj_pair2_eq_dec in H6.  apply inj_pair2_eq_dec in H4.  apply inj_pair2_eq_dec in H4.  apply inj_pair2_eq_dec in H2.  apply inj_pair2_eq_dec in H2.  apply inj_pair2_eq_dec in H16.  apply inj_pair2_eq_dec in H14. subst.  inversion H3.  apply inj_pair2_eq_dec in H6.  apply inj_pair2_eq_dec in H7.  apply inj_pair2_eq_dec in H7.  apply inj_pair2_eq_dec in H8. subst. cbv. subst. cbv 
+*)
+
+
+
 (*End session.*)

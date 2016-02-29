@@ -54,8 +54,9 @@ Definition proto4 :=
   ReturnC x.
 Check proto4.
 
+Definition payload5 := (basic 43).
 Definition proto5 :=
-  send (basic 42);
+  send payload5;
   x <- receive;
   ReturnC (t:=Basic) x.
 Check proto5.
@@ -64,8 +65,13 @@ Example dual45 : Dual proto4 proto5. unfold Dual. simpl. auto. Defined.
 
 Eval compute in runProto proto4 proto5 dual45.
 
-Example eval45 : fst (runProto proto4 proto5 dual45) = basic 42.
+Example eval45 : fst (runProto proto4 proto5 dual45) = payload5.
 auto. Qed.
+
+Eval compute in runProtoMultiStep proto4 proto5 dual45.
+
+Example r45 : runProtoR _ _ _ _ proto4 proto5 payload5.
+repeat constructor. Qed.
 
 Definition proto6 (b:bool) :=
   choice b EpsC
@@ -173,7 +179,7 @@ Example uniqueAuth : forall k k',
 Proof.
   intros. destruct (is_inverse k k'). 
   assumption.
-  simpl in H. Abort.
+  cbv in H. Abort.
 
 Example uniqueAuth : forall k k',
     fst (runProtoMultiStep (protoAuth1 k) (protoAuth2 k') dualProtoAuth12)
