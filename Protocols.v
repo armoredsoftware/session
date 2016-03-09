@@ -1,6 +1,7 @@
 Require Import Crypto.
 Require Import Session.
 Require Import Peano_dec.
+Require Import Eqdep_dec.
 
 
 Module protocols.
@@ -70,7 +71,7 @@ auto. Qed.
 
 Eval compute in runProtoMultiStep proto4 proto5 dual45.
 
-Example r45 : runProtoR _ _ _ _ proto4 proto5 payload5.
+Example r45 : runProtoR _ _ _ _ proto4 proto5 payload5. unfold proto4. unfold proto5.
 repeat constructor. Qed.
 
 Definition proto6 (b:bool) :=
@@ -85,6 +86,23 @@ Example dual67 : forall b, Dual (proto6 b) proto7. unfold Dual. simpl. auto. Def
 
 Eval compute in (runProto (proto6 false) proto7 (dual67 false)).
 Eval compute in (runProto (proto6 true) proto7 (dual67 true)).
+
+Definition proto6' (b:bool) :=
+  choice b EpsC
+         EpsC. Check proto6'.
+
+Definition proto7' :=
+  offer EpsC
+        EpsC. Check proto7'.
+
+Example r67' : runProtoR _ _ _ _ (proto6' false) proto7' (basic 0).
+Proof.
+  cbv. apply choiceRf with (m:=(basic 0)). constructor. constructor.
+Qed.
+
+Example r67 : runProtoR _ _ _ _ (proto6 false) proto7 (basic 44).
+Proof.
+  unfold proto6. unfold proto5. apply choiceRf with (m:=(basic 0)). constructor. repeat constructor. Qed.
 
 Example notDual35 : ~ (Dual proto3  proto5). auto. Defined.
 Eval compute in (runProto proto5 proto3).
@@ -303,18 +321,8 @@ Eval compute in runProto Needham_A_badAuth Needham_B_badEncrypt DualNeedham.
 
 Eval compute in runProto Needham_A_badEncrypt Needham_B_badAuth DualNeedham.
 Eval compute in runProto Needham_A_badEncrypt Needham_B_badEncrypt DualNeedham.
-
-
-Theorem needham_auth : forall k k',
-    pairFst (fst (runProto (Needham_A aPri k) (Needham_B k' aPub) DualNeedham)) = aNonce ->
-    k = inverse k'.
-Proof.
-  intros. destruct (is_inverse k k').
-  assumption.
-  simpl in H. assert (~ isBad aNonce). unfold not. intros. inversion H0. assert (k = inverse k'). apply (decryptSuccess aNonce k k' H0 H). assumption.
-Qed.
   
-Theorem needham_auth' : forall k k',
+Theorem needham_auth : forall k k',
     pairFst (fst (runProtoMultiStep (Needham_A aPri k) (Needham_B k' aPub) DualNeedham)) = aNonce ->
     k = inverse k'.
 Proof.
@@ -322,6 +330,12 @@ Proof.
   assumption.
   simpl in H. assert (~ isBad aNonce). unfold not. intros. inversion H0. assert (k = inverse k'). apply (decryptSuccess aNonce k k' H0 H). assumption.
 Qed.
+
+Theorem needhamRauth : forall k k', runProtoR _ _ _ _ (Needham_A aPri k) (Needham_B k' aPub) (pair aNonce bNonce) -> k = inverse k'.
+Proof.
+  intros. inversion H. subst.  apply inj_pair2_eq_dec in H8.  apply inj_pair2_eq_dec in H8.  apply inj_pair2_eq_dec in H8.  apply inj_pair2_eq_dec in H9.
+  apply inj_pair2_eq_dec in H7. apply inj_pair2_eq_dec in H7. apply inj_pair2_eq_dec in H6. subst. Abort.
+
 
 Theorem needham_auth_gen : forall k k' j j',
     pairFst ( fst (runProto (Needham_A j' k) (Needham_B k' j) DualNeedham)) = aNonce ->

@@ -1,4 +1,4 @@
-Require Export Crypto.
+Require Export NoDepCrypto.
 Require Import Program.
 Require Import Arith.
 Require Import Eqdep_dec.
@@ -8,62 +8,66 @@ Inductive protoType : Type :=
 | Receive : type -> protoType -> protoType
 | Choice : protoType -> protoType -> protoType
 | Offer : protoType -> protoType -> protoType  
-| Eps : type -> protoType.
+| Eps : protoType.
+
+(*
+(* (protoExp T' (Send S s' )) ->  *)
 
 Inductive protoExp : type -> protoType -> Type :=
-| SendC {t:type} {T:type} {p':protoType}  : (message t) -> (protoExp T p')
-    -> protoExp T (Send t p')
-| ReceiveC {t:type} {T:type} {p':protoType} : ((message t)->(protoExp T p'))     -> protoExp T  (Receive t p') 
-| ChoiceC (b:bool) {r s:protoType} {R S:type} :(protoExp R r) -> (protoExp S s)
-    -> (protoExp (if(b) then R else S) (Choice r s))
-| OfferC {r s : protoType} {R S:type} : (protoExp R r) -> (protoExp S s)
-                                        -> (protoExp (Either R S) (Offer r s))| ReturnC {t:type} : (message t) -> protoExp t (Eps t).
+| SendC  (m:message) : forall T T' t r', (protoExp T' (Receive (hasType m) r' )) -> (message -> protoExp T t) -> protoExp T (Send (hasType m) t)
+| RecC {T T' S:type}{t s':protoType} : (message -> protoExp T t) -> protoExp T (Receive S t)
+| ReturnC (m:message) : protoExp (hasType m) (Eps).
 
-Inductive DualR : forall (T T':type), forall (t t':protoType), (protoExp T t) -> (protoExp T' t') -> Prop :=
-| returnR' : forall T T' (m:message T) (m':message T'),
-    DualR _ _ _ _ (ReturnC m) (ReturnC m')
-| sendR' : forall X Y Y' p1t p2t
-            (m:message Y)
-            (f: ((message Y) -> (protoExp Y' p2t)))
-            (p1':protoExp X p1t),
-        DualR _ _ _ _ p1' (f m) ->
-        DualR _ _ _ _ (SendC m p1') (ReceiveC f)
-| receiveR' : forall X Y Y' p1t p2t
-            (m:message Y)
-            (f: ((message Y) -> (protoExp Y' p2t)))
-            (p1':protoExp X p1t),
-            DualR _ _ _ _ (f m) p1' ->
-            DualR _ _ _ _ (ReceiveC f) (SendC m p1')
-| choiceRt' : forall R R' S S' r r' s s'
-               (r:protoExp R r) (r0:protoExp R' r')
-               (s:protoExp S s) (s0:protoExp S' s')
-               (m:message R) (m':message S),
-    DualR _ _ _ _ r r0 ->
-    DualR _ _ _ _ s s0 ->
-    DualR _ _ _ _ (ChoiceC true r s) (OfferC r0 s0)
+Definition p1 := (SendC (basic 1) _ _ _ _
+                        (RecC (T':=Basic) (s':=Eps) (fun x => (ReturnC (x))))
+                 (fun x => ReturnC (basic 0))). Eval compute in p1.
+*)
+                                                                             
+Inductive protoExp : Type :=
+| SendC (m:message) : protoExp -> protoExp
+| ReceiveC : (message -> protoExp) -> protoExp
+| ChoiceC (b:bool) : protoExp -> protoExp -> protoExp
+| OfferC : protoExp -> protoExp -> protoExp
+| ReturnC (m:message) : protoExp.
 
-| choiceRf' : forall R R' S S' r r' s s'
-               (r:protoExp R r) (r0:protoExp R' r')
-               (s:protoExp S s) (s0:protoExp S' s'),
-    DualR _ _ _ _ r r0 ->
-    DualR _ _ _ _ s s0 ->
-    DualR _ _ _ _ (ChoiceC false r s) (OfferC r0 s0)
+Definition prot1 := SendC (basic 1) (ReturnC (basic 1)).
+Definition proto2 := ReceiveC (fun x => (ReturnC x)).
 
-| offerRt' : forall R R' S S' r r' s s'
-              (r:protoExp R r) (r0:protoExp R' r')
-              (s:protoExp S s) (s0:protoExp S' s'),
-    DualR _ _ _ _ r r0 ->
-    DualR _ _ _ _ s s0 ->
-    DualR _ _ _ _ (OfferC r s) (ChoiceC true r0 s0)
+Fixpoint Dual (p1: protoExp) (p2:protoExp) : Prop.
+  refine (
+  match p1 with
+  | SendC m p1' =>
+    match p2 with
+    | ReceiveC f => Dual p1' (f m)
+    | _ => False
+    end
+  | ReceiveC f =>
+    match p2 with
+    | SendC m p1' => Dual (f m) p1'                            
+    | _ => False
+    end
+  | ChoiceC b p1' p2' =>
+    match p2 with
+    | OfferC p1'' p2'' => if(b) then Dual p1' p1'' else Dual p2' p2''             | _ => False
+    end
+  | OfferC p1' p2' =>
+    match p2 with
+    | ChoiceC b p1'' p2'' => if(b) then Dual p1' p1'' else Dual p2' p2''
+    | _ => False
+    end
+  | ReturnC _ =>
+    match p2 with
+    | ReturnC _ => True
+    | _ => False
+    end
+  end). Defined.
 
-| offerRf' : forall R R' S S' r r' s s'
-              (r:protoExp R r) (r0:protoExp R' r')
-              (s:protoExp S s) (s0:protoExp S' s'),
-    DualR _ _ _ _ r r0 ->
-    DualR _ _ _ _ s s0 ->
-    DualR _ _ _ _ (OfferC r s) (ChoiceC false r0 s0).  
+Fixpoint 
+                    
 
-(*Notation "x :!: y" := (Send x y)
+(*
+
+Notation "x :!: y" := (Send x y)
                         (at level 50, left associativity). 
 Notation "x :!: y" := (protoExp (Send x y))
                         (at level 50, left associativity).
@@ -90,7 +94,7 @@ Notation "x <- 'receive' ; p " := (ReceiveC (fun x => p))
 
 Notation "'offer'" := OfferC.
 
-Notation "'choice'" := ChoiceC.  *)
+Notation "'choice'" := ChoiceC. 
 
 Definition EpsC := ReturnC (basic 0).
 
@@ -164,34 +168,11 @@ Proof.
   
 Defined.
 
-Definition Dual {t t':protoType} {T T':type} (p1:protoExp T t) (p2:protoExp T' t') : Prop := DualT t t'.
-
-Theorem ifDualThenDualR {t t':protoType} {T T':type} (p1:protoExp T t) (p2:protoExp T' t') : Dual p1 p2 -> DualR _ _ _ _ p1 p2.
-Proof.
-  intros. dependent inversion p1; dependent inversion p2; subst; try (inversion H; contradiction).
-  inversion H. subst. constructor.
-Abort.
-
-Theorem ifDualThenDualR {t t':protoType} {T T':type} (p1:protoExp T t) (p2:protoExp T' t') : Dual p1 p2 -> DualR _ _ _ _ p1 p2.
-Proof.
-  intros. dependent induction p1; dependent induction p2; subst; try (inversion H; contradiction). inversion H0. subst. constructor.
-  assert (protoExp T0 (Receive t0 p'0)) as xxx. exact (ReceiveC p).
-  assert (Dual p1 xxx). unfold Dual. dependent inversion p'. simpl
-  admit
-  admit.
-  inversion H1. inversion H0. inversion H0. inversion H0. inversion H0.
-  admit.
-  inversion H0.
-  admit.
-  inversion H0.
-  constructor. 
-Abort.
+Definition Dual {t t':protoType} {T T':type} (p1:protoExp T t) (p2:protoExp T' t') : Prop := DualT t t'.        
 
 Fixpoint runProto' {t t':protoType} {T T':type} (p1:protoExp T t) (p2:protoExp T' t') 
   : (Dual p1 p2) -> (message T).
-Proof.
-
-  intros; destruct p1; destruct p2; try inversion H.
+Proof. intros; destruct p1; destruct p2; try inversion H.
 
        subst. apply (runProto' _ _ _ _ p1 (p m) (*l*)(*(protoExpLength (p m))*)). assumption.
        subst. apply (runProto' _ _ _ _ (p m) p2 ). assumption.
@@ -362,16 +343,15 @@ Inductive runProtoR : forall (T T':type), forall (t t':protoType), (protoExp T t
 | returnR : forall T T' (m:message T) (m':message T'),
     runProtoR _ _ _ _ (ReturnC m) (ReturnC m') m
 | sendR : forall X Y Y' p1t p2t m'
-            (m:message X)
-            (f: ((message X) -> (protoExp Y' p2t)))
-            (p1':protoExp Y p1t),
-        
-        runProtoR _ _ p1t p2t p1' (f m) m' ->
+            (m:message Y)
+            (f: ((message Y) -> (protoExp Y' p2t)))
+            (p1':protoExp X p1t),
+        runProtoR _ _ _ _ p1' (f m) m' ->
         runProtoR _ _ _ _ (SendC m p1') (ReceiveC f) m'
 | receiveR : forall X Y Y' p1t p2t m'
-            (m:message X)
-            (f: ((message X) -> (protoExp Y' p2t)))
-            (p1':protoExp Y p1t),
+            (m:message Y)
+            (f: ((message Y) -> (protoExp Y' p2t)))
+            (p1':protoExp X p1t),
             runProtoR _ _ _ _ (f m) p1' m' ->
             runProtoR _ _ _ _ (ReceiveC f) (SendC m p1') m'
 | choiceRt : forall R R' S S' r r' s s'
@@ -423,21 +403,9 @@ Definition protoSimple2 :=
 Example rEx2 : runProtoR _ _ _ _ protoSimple2 protoSimple1 (basic 1).
 Proof. repeat constructor. Qed.
 
-Theorem rIfDual {t t':protoType} {T T':type} (p1:protoExp T t) (p2:protoExp T' t') : DualR _ _ _ _ p1 p2 -> (exists m, runProtoR _ _ _ _ p1 p2 m).
+Theorem rIffDual {t t':protoType} {T T':type} (p1:protoExp T t) (p2:protoExp T' t') : (exists m, runProtoR _ _ _ _ p1 p2 m) -> Dual p1 p2.
 Proof.
-  intros H.
-  dependent induction p1; dependent induction p2; try (inversion H).
-  exists (bad T). inversion H0. clear H4. subst.
-  apply sendR. Abort.
-                                                                                        
-Theorem dualIfR {t t':protoType} {T T':type} (p1:protoExp T t) (p2:protoExp T' t') : (exists m, runProtoR _ _ _ _ p1 p2 m) -> DualR _ _ _ _ p1 p2.
-Proof.
-  intros. dependent induction p1; dependent induction p2; try (inversion H); try (inversion H0). inversion H1.  clear H5. subst. apply sendR'.
-
-  specialize IHp1 with (ReceiveC p). subst. Abort. (*apply IHp1.
-
-  runProtoR T T0 p' p'0 p1' (f0 m1) m'
-  intros. destruct p1; destruct p2. inversion H; inversion H0.
+  intros. destruct p1; destruct p2; inversion H; inversion H0.
   split.
   inversion H0. reflexivity.
   induction H4. simpl. trivial.
@@ -450,7 +418,7 @@ Proof.
   end
 
   inversion H0 reflexivity
-  inversion H0. inversion H4. subst. simpl. trivial. inversion H4. subst. simpl. split. trivial. Abort *) *)
+  inversion H0. inversion H4. subst. simpl. trivial. inversion H4. subst. simpl. split. trivial. Abort *)
   
 Theorem rIffmulti {t t':protoType} {T T':type} (p1:protoExp T t) (p2:protoExp T' t') (pf:Dual p1 p2) : forall m, runProtoR T T' t t' p1 p2 m -> fst (runProtoMultiStep p1 p2 pf) = m.
 Proof. 
@@ -460,5 +428,5 @@ Proof.
 *)
 
 
-
+*)
 (*End session.*)
