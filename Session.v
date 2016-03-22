@@ -2,6 +2,8 @@ Require Export Crypto.
 Require Import Program.
 Require Import Arith.
 Require Import Eqdep_dec.
+Require Import Coq.Logic.FunctionalExtensionality.
+Require Import CpdtTactics.
 
 Inductive protoType : Type :=
 | Send : type -> protoType -> protoType
@@ -18,6 +20,15 @@ Inductive protoExp : type -> protoType -> Type :=
     -> (protoExp (if(b) then R else S) (Choice r s))
 | OfferC {r s : protoType} {R S:type} : (protoExp R r) -> (protoExp S s)
                                         -> (protoExp (Either R S) (Offer r s))| ReturnC {t:type} : (message t) -> protoExp t (Eps t).
+
+(*
+Inductive DualR' : forall (T T':type), forall (t t':protoType), (protoExp T t) -> (protoExp T' t') -> Prop :=
+
+| returnR' : forall T T' r1 r2, DualR' T T' (Eps T) (Eps T') r1 r2
+| sendR' : forall T T' t' t'' x y r1 r2 r3 r4,
+    (T = T') ->
+    DualR' x y t' t'' r3 r4 ->
+    DualR' x y (Send T t') (Receive T t'') r1 r2.   *)  
 
 Inductive DualR : forall (T T':type), forall (t t':protoType), (protoExp T t) -> (protoExp T' t') -> Prop :=
 | returnR' : forall T T' (m:message T) (m':message T'),
@@ -36,8 +47,7 @@ Inductive DualR : forall (T T':type), forall (t t':protoType), (protoExp T t) ->
             DualR _ _ _ _ (ReceiveC f) (SendC m p1')
 | choiceRt' : forall R R' S S' r r' s s'
                (r:protoExp R r) (r0:protoExp R' r')
-               (s:protoExp S s) (s0:protoExp S' s')
-               (m:message R) (m':message S),
+               (s:protoExp S s) (s0:protoExp S' s'),
     DualR _ _ _ _ r r0 ->
     DualR _ _ _ _ s s0 ->
     DualR _ _ _ _ (ChoiceC true r s) (OfferC r0 s0)
@@ -61,9 +71,9 @@ Inductive DualR : forall (T T':type), forall (t t':protoType), (protoExp T t) ->
               (s:protoExp S s) (s0:protoExp S' s'),
     DualR _ _ _ _ r r0 ->
     DualR _ _ _ _ s s0 ->
-    DualR _ _ _ _ (OfferC r s) (ChoiceC false r0 s0).  
+    DualR _ _ _ _ (OfferC r s) (ChoiceC false r0 s0). 
 
-(*Notation "x :!: y" := (Send x y)
+Notation "x :!: y" := (Send x y)
                         (at level 50, left associativity). 
 Notation "x :!: y" := (protoExp (Send x y))
                         (at level 50, left associativity).
@@ -90,7 +100,7 @@ Notation "x <- 'receive' ; p " := (ReceiveC (fun x => p))
 
 Notation "'offer'" := OfferC.
 
-Notation "'choice'" := ChoiceC.  *)
+Notation "'choice'" := ChoiceC.  
 
 Definition EpsC := ReturnC (basic 0).
 
@@ -166,26 +176,213 @@ Defined.
 
 Definition Dual {t t':protoType} {T T':type} (p1:protoExp T t) (p2:protoExp T' t') : Prop := DualT t t'.
 
-Theorem ifDualThenDualR {t t':protoType} {T T':type} (p1:protoExp T t) (p2:protoExp T' t') : Dual p1 p2 -> DualR _ _ _ _ p1 p2.
+(*
+Fixpoint ifDualThenDualR {t t':protoType} {T T':type} (n:nat) (p1:protoExp T t) (p2:protoExp T' t') : Dual p1 p2 -> DualR _ _ _ _ p1 p2.
+  refine ( fun H => 
+      match n with
+      | O => _
+      | S n' => _
+      end ). 
+  dependent inversion p1; subst; dependent inversion p2; subst; try inversion H. subst. constructor. apply ifDualThenDualR. exact n'. unfold Dual. assumption. subst. constructor. apply ifDualThenDualR. exact n'. unfold Dual. assumption.
+  destruct b.
+  constructor. apply ifDualThenDualR. exact n'. unfold Dual. assumption. apply ifDualThenDualR. exact n'. unfold Dual. assumption.
+  constructor. apply ifDualThenDualR. exact n'. unfold Dual. assumption. apply ifDualThenDualR. exact n'. unfold Dual. assumption.
+  destruct b.
+    constructor. apply ifDualThenDualR. exact n'. unfold Dual. assumption. apply ifDualThenDualR. exact n'. unfold Dual. assumption.
+    constructor. apply ifDualThenDualR. exact n'. unfold Dual. assumption. apply ifDualThenDualR. exact n'. unfold Dual. assumption.
+    constructor. 
+Abort. 
+  
+  
+
+
+  try inversion H. dependent induction p
+
+  
+  apply ifDualThenDualR. apply H. apply ifDualThenDualR. apply H. apply ifDualThenDualR. apply H. apply ifDualThenDualR. apply H. constructor. Defined.
+  
+
+  
+Abort. *)
+
+Theorem ifDualThenDualR {t t':protoType} {T T':type} : forall (p1:protoExp T t) (p2:protoExp T' t'), Dual p1 p2 -> DualR _ _ _ _ p1 p2.
 Proof.
-  intros. dependent inversion p1; dependent inversion p2; subst; try (inversion H; contradiction).
-  inversion H. subst. constructor.
+  
+  intros p1. generalize dependent t'. generalize dependent T'. 
+  induction p1; dependent inversion p2; try (intros; inversion H1).
+  subst. constructor. apply IHp1. unfold Dual. assumption.
+  inversion H2. subst. constructor. apply H. unfold Dual. assumption.
+  inversion H2.
+  inversion H2.
+  inversion H2.
+  inversion H2.
+  destruct b. constructor. subst. apply IHp1_1. unfold Dual. assumption.
+  apply IHp1_2. unfold Dual. assumption.
+  constructor. subst. apply IHp1_1. unfold Dual. assumption.
+  apply IHp1_2. unfold Dual. assumption.
+  destruct b. constructor. subst. apply IHp1_1. unfold Dual. assumption.
+  apply IHp1_2. unfold Dual. assumption.
+  constructor. subst. apply IHp1_1. unfold Dual. assumption.
+  apply IHp1_2. unfold Dual. assumption.
+  constructor. Qed.
+
+
+  (*
+  f0 : message t0 -> protoExp T p'
+  H10 : t0 = t0
+  H4 : DualR T T0 p' p'0 (f0 m) p2
+             p : message t0 -> protoExp T p' 
+  H : forall (m : message t0) (T' : type) (t' : protoType)
+        (p2 : protoExp T' t'), DualR T T' p' t' (p m) p2 -> Dual (p m) p2
+   *)
+
+Definition sameExpType {T T':type} {p p':protoType} (a:protoExp T p) (b:protoExp T' p') : Prop := p = p' /\ T = T'.
+
+(* x : DualR X Y' p' p'0 a (p m0)  *)
+Lemma poopypants : forall T x y p1 p2 a p (m0 m:message T), DualR x y p1 p2 a (p m0) -> DualR x y p1 p2 a (p m).
+Proof.
+  Abort.
+
+    
+Lemma sameTypeDualR {T T' p2T:type} {p p' p2t:protoType} : forall  (b:protoExp T' p') (a:protoExp T p) p2, (sameExpType a b) -> (DualR _ p2T _ p2t a p2) -> (DualR _ _ _ _ b p2).
+Proof.
+  intros b a p2 same aDual.
+  inversion same; subst.
+  induction b. dep_destruct a. dep_destruct p2. generalize dependent m.  inversion aDual. dep_destruct aDual.  (*apply poopypants with (m:=m) in x0. constructor. *)
+
 Abort.
 
-Theorem ifDualThenDualR {t t':protoType} {T T':type} (p1:protoExp T t) (p2:protoExp T' t') : Dual p1 p2 -> DualR _ _ _ _ p1 p2.
+(*rewrite H9.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  admit.                                                   
+  inversion H1.
+  inversion H1.
+  inversion H1.
+  inversion H1.
+  inversion H2.
+  admit.
+  inversion H2.
+  inversion H2.
+  inversion H2.
+  inversion H.
+  inversion H.
+  inversion H.
+  inversion H.
+  admit.
+  inversion H.
+  inversion H.
+  inversion H.
+  inversion H.
+  inversion H.
+  inversion H.
+  inversion H.
+  admit.
+  inversion H.
+  inversion H.
+  inversion H.
+  inversion H.
+  inversion H.
+  inversion H.
+  inversion H.
+  constructor. *)
+
+                                       
+Theorem ifDualRthenDual {t t':protoType} {T T':type} : forall (p1:protoExp T t) (p2:protoExp T' t'), DualR _ _ _ _ p1 p2 -> Dual p1 p2.
 Proof.
-  intros. dependent induction p1; dependent induction p2; subst; try (inversion H; contradiction). inversion H0. subst. constructor.
-  assert (protoExp T0 (Receive t0 p'0)) as xxx. exact (ReceiveC p).
-  assert (Dual p1 xxx). unfold Dual. dependent inversion p'. simpl
-  admit
+  intros p1. generalize dependent t'. generalize dependent T'. 
+  induction p1.  destruct p2.
+
+  try (intro xx; inversion xx; contradiction).
+  intro. unfold Dual. simpl. inversion H. simpl_existTs.
+  split. assumption.
+  subst. apply (IHp1 T0 p'0 (p m1) H3).
+  try (intro xx; inversion xx; contradiction).
+  try (intro xx; inversion xx; contradiction).
+  try (intro xx; inversion xx; contradiction).
+
+  (*intro. unfold Dual. inversion H0. subst. simpl_existTs. subst. split.  assumption. *)
+   (*apply (H _ _ _ _ H4). *)
+
+  
+  (*generalize dependent p.*) generalize dependent t. generalize dependent T.  destruct p2.
+  intros. unfold Dual. dep_destruct H0. (*simpl_existTs; subst. *) 
+  split. reflexivity. unfold Dual in H. apply (H m _ p'0 p2 x).
+
+  (*
+  assert (DualR T T0 p' p'0 (p m) p2). Print sameTypeDualR. apply (sameTypeDualR (f0 m) (p m)). unfold sameExpType. reflexivity. assumption. apply (H m T0 p'0 p2 H1).
+
+  admit. apply (H _ _ _ p2 H4).
+
+  inversion H0. simpl_existTs. rewrite H12 in H4. apply IHp2.
   admit.
-  inversion H1. inversion H0. inversion H0. inversion H0. inversion H0.
-  admit.
-  inversion H0.
-  admit.
-  inversion H0.
-  constructor. 
-Abort.
+
+
+                          apply inj_pairT2 in H8. apply inj_pairT2 in H8. apply inj_pairT2 in H8
+  simpl_existTs split. reflexivity.
+
+  generalize dependent p. dependent inversion p2.
+  intro. inversion H2. simpl_existTs. assert (protoExp T p'). exact (f0 m1). assert (X0 = (f m1)). subst.
+  
+  
+
+  unfold Dual. simpl. inversion H0. simpl_existTs. split. assumption. subst. unfold Dual in H. apply (H _ _ _ p2 H4).
+
+  apply (H _ _ _ p2 H4).
+  
+  try (intro xx; inversion xx; contradiction)
+  intro. unfold Dual in H. unfold Dual. simpl. split. inversion H0. simpl_existTs.  subst. assumption. inversion H0. simpl_existTs. subst. assert (protoExp T p'). exact (p m). unfold Dual in IHp2.
+
+  apply (H _ _ _ p2 H4).
+
+      apply f0 in m. subst apply (H _ _ _ _ H6).
+  split. assumption.
+  simpl_existTs.
+  *)
+  intro aa. inversion aa.
+  intro aa. inversion aa.
+  intro aa. inversion aa.
+  intro aa. inversion aa.
+  dependent inversion p2.
+  intro aa. inversion aa.
+  intro aa. inversion aa.
+  intro aa. inversion aa.
+  intro aa. inversion aa. simpl_existTs. subst. unfold Dual. simpl. split. unfold Dual in IHp1_1. apply (IHp1_1 _ _ _ H5). apply (IHp1_2 _ _ _ H16).
+  simpl_existTs. subst. unfold Dual. split. apply (IHp1_1 _ _ _ H5). apply (IHp1_2 _ _ _ H16).
+  intro aa. inversion aa.
+    dependent inversion p2.
+  intro aa. inversion aa.
+  intro aa. inversion aa.
+  intro aa. inversion aa. simpl_existTs. subst. unfold Dual. simpl. split. unfold Dual in IHp1_1. apply (IHp1_1 _ _ _ H5). apply (IHp1_2 _ _ _ H16).
+  simpl_existTs. subst. unfold Dual. split. apply (IHp1_1 _ _ _ H5). apply (IHp1_2 _ _ _ H16).
+  intro aa. inversion aa.
+  intro aa. inversion aa.
+  dependent inversion p2.
+   intro aa. inversion aa.
+   intro aa. inversion aa.
+     intro aa. inversion aa.
+     intro aa. inversion aa.
+     intro. unfold Dual. simpl. trivial.
 
 Fixpoint runProto' {t t':protoType} {T T':type} (p1:protoExp T t) (p2:protoExp T' t') 
   : (Dual p1 p2) -> (message T).
@@ -430,9 +627,35 @@ Proof.
   exists (bad T). inversion H0. clear H4. subst.
   apply sendR. Abort.
                                                                                         
-Theorem dualIfR {t t':protoType} {T T':type} (p1:protoExp T t) (p2:protoExp T' t') : (exists m, runProtoR _ _ _ _ p1 p2 m) -> DualR _ _ _ _ p1 p2.
+(*Fixpoint dualIfR {t t':protoType} {T T':type} (p1:protoExp T t) (p2:protoExp T' t') : (exists m, runProtoR _ _ _ _ p1 p2 m) -> DualR _ _ _ _ p1 p2.
 Proof.
-  intros. dependent induction p1; dependent induction p2; try (inversion H); try (inversion H0). inversion H1.  clear H5. subst. apply sendR'.
+  intros H. dependent inversion p1. dependent inversion p2.
+  inversion H. subst. inversion H4.
+  inversion H. inversion H4. simpl_existTs. subst. inversion H7. simpl_existTs. subst. inversion H4. simpl_existTs. inversion H3. simpl_existTs. clear H28. clear H3. subst. constructor. dependent inversion p. 
+  inversion H1.
+  inversion H1.
+  inversion H1.
+  inversion H1.
+  admit.
+  inversion H1.
+  admit.
+  inversion H1.
+  constructor.
+  inversion H. subst. inversion H4. simpl_existTs. clear H3. subst. constructor.
+
+
+
+  
+  intros. dependent induction p1; dependent induction p2; try (inversion H); try (inversion H0).
+
+  admit. admit. inversion H1. inversion H2. inversion H1. inversion H1. inversion H1. inversion H1. simpl_existTs. destruct b. constructor. assumption. assumption. subst.
+
+
+
+  dependent inversion H1. simpl_existTs. inversion H5. simpl_existTs. clear H24. clear H5. subst. constructor. dependent inversion p1.
+  
+
+  clear H5. subst. apply sendR'.
 
   specialize IHp1 with (ReceiveC p). subst. Abort. (*apply IHp1.
 
@@ -450,11 +673,11 @@ Proof.
   end
 
   inversion H0 reflexivity
-  inversion H0. inversion H4. subst. simpl. trivial. inversion H4. subst. simpl. split. trivial. Abort *) *)
+  inversion H0. inversion H4. subst. simpl. trivial. inversion H4. subst. simpl. split. trivial. Abort *) *) *)
   
-Theorem rIffmulti {t t':protoType} {T T':type} (p1:protoExp T t) (p2:protoExp T' t') (pf:Dual p1 p2) : forall m, runProtoR T T' t t' p1 p2 m -> fst (runProtoMultiStep p1 p2 pf) = m.
+Theorem multiIfR {t t':protoType} {T T':type} (p1:protoExp T t) (p2:protoExp T' t') (pf:Dual p1 p2) : forall m, runProtoR T T' t t' p1 p2 m -> fst (runProtoMultiStep p1 p2 pf) = m.
 Proof. 
-  intros. destruct p1; destruct p2; destruct pf.
+  intros. destruct p1; destruct p2; destruct pf. Abort.
 
   (*destruct m0; destruct m. destruct n; destruct n0. inversion H. subst.  apply inj_pair2_eq_dec in H11.  apply inj_pair2_eq_dec in H11.  apply inj_pair2_eq_dec in H11.  apply inj_pair2_eq_dec in H12.  apply inj_pair2_eq_dec in H8.  apply inj_pair2_eq_dec in H8.  apply inj_pair2_eq_dec in H7. rewrite <- H11. rewrite <- H8. inversion H3.  apply inj_pair2_eq_dec in H17.  apply inj_pair2_eq_dec in H16.  apply inj_pair2_eq_dec in H14.  subst. inversion H3.  apply inj_pair2_eq_dec in H6.  apply inj_pair2_eq_dec in H4.  apply inj_pair2_eq_dec in H4.  apply inj_pair2_eq_dec in H2.  apply inj_pair2_eq_dec in H2.  apply inj_pair2_eq_dec in H16.  apply inj_pair2_eq_dec in H14. subst.  inversion H3.  apply inj_pair2_eq_dec in H6.  apply inj_pair2_eq_dec in H7.  apply inj_pair2_eq_dec in H7.  apply inj_pair2_eq_dec in H8. subst. cbv. subst. cbv 
 *)

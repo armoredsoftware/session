@@ -64,7 +64,7 @@ end.
  inverse checking.  It will be used in [decrypt] and [check] later in the
  specification. *)
 
-Theorem is_inverse:forall k k', {k = (inverse k')}+{k <> (inverse k')}.
+Theorem is_inverse (k k':keyType) : {k = (inverse k')}+{k <> (inverse k')}.
 Proof.
   intros.
   destruct k; destruct k';
@@ -441,7 +441,7 @@ Ltac eq_key_helper :=
   | [ |- _ ] => right; unfold not; intros; inversion H
   end.
 
-Theorem eq_key_dec: forall k k':keyType, {k=k'}+{k<>k'}.
+Theorem eq_key_dec (k k':keyType) : {k=k'}+{k<>k'}.
 Proof.
   intros.
   destruct k; destruct k'; eq_key_helper.
@@ -449,7 +449,7 @@ Defined.
   
 Hint Resolve eq_key_dec.
 
-Theorem eq_type_dec: forall x y : type, {x = y} + {x <> y}.
+Theorem eq_type_dec : forall (x y:type), {x = y} + {x <> y}.
 Proof.
   induction x, y;
   match goal with
@@ -461,7 +461,7 @@ Proof.
    | subst; right; unfold not; intros; inversion H; contradiction
    | subst; right; unfold not; intros; inversion H; contradiction ]
   | [ |- _ ] => right; unfold not; intros; inversion H 
-  end.
+  end. (*destruct IHx. subst. admit.*)
 Defined.
 
 Theorem message_eq_lemma: forall t, forall m:(message t), forall m':(message t), forall k k',

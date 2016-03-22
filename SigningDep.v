@@ -133,7 +133,8 @@ Admitted. *)
 
 
 
-Theorem message_eq_dec: forall t, forall m:(message t), forall m':(message t), {m=m'}+{m<>m'}.
+Theorem message_eq_dec {t:type} (m:(message t)) (m':(message t)) :
+  {m=m'}+{m<>m'}.
 Proof.
   dependent induction m; dependent induction m'.
   (eq_not_eq (eq_nat_dec n n0)).
@@ -196,6 +197,13 @@ Proof.
 Defined.
   
 Hint Resolve message_eq_dec.
+
+Require Import Coq.Program.Equality.
+
+Example aaaa : message_eq_dec (basic 1) (basic 1) = left eq_refl.
+compute. rewrite JMeq_eq_refl. reflexivity. Qed.
+
+Eval compute in message_eq_dec (basic 1) (basic 2)
 
 Theorem hash_eq_dec: forall t1 t2 m1 m2,
     {hash t1 m1 = hash t2 m2} + {hash t1 m1 <> hash t2 m2}.
@@ -283,7 +291,7 @@ Theorem check_dec: forall t:type, forall m:message (Pair t (Encrypt Hash)), fora
           right. unfold not. intros. simpl in H. tauto.
  *)
   
-Theorem check_dec' : forall t:type, forall m:message (Pair t (Encrypt Hash)), forall k, {(is_signed' _ m k)}+{not (is_signed' _ m k)}.
+Theorem check_dec' (t:type) (m:message (Pair t (Encrypt Hash))) (k:keyType) : {(is_signed' _ m k)}+{not (is_signed' _ m k)}.
 Proof.
   intros.
   dependent inversion m. dependent inversion m1. dependent inversion m2.
@@ -314,10 +322,22 @@ Notation " 'good' " := (left _ _).
 
 Notation " 'bad' " := (right _ _).
 
-Example is_signed_ex1: is_signed (sign (basic 1) (private 1)) (public 1).
+Definition sm1 := (sign (basic 2) (private 1)).
+
+Example is_signed_ex1: is_signed sm1 (public 1).
 Proof.
   cbv. reflexivity.
 Qed.
+
+SearchAbout JMeq.
+(*Eval cbn in (if (check_dec' _ sm1 (public 1)) then true else false). *)
+
+Eval cbv in check_dec' _ sm1 (public 1).
+Eval cbn in check_dec' _ sm1 (public 1). SearchAbout JMeq.
+
+Example aaa {t:type} {m:message (Pair t (Encrypt Hash))} {k:keyType}: True.
+assert ({(is_signed' _ m k)}+{not (is_signed' _ m k)}).
+destruct (check_dec' _ m k). dependent inversion m. Abort.
 
 Example is_signed_ex2: is_signed (sign (basic 1) (private 1)) (public 2) -> False.
 Proof.

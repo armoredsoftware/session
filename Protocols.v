@@ -1,4 +1,5 @@
 Require Import Crypto.
+Require Import SigningDep.
 Require Import Session.
 Require Import Peano_dec.
 Require Import Eqdep_dec.
@@ -269,17 +270,17 @@ Definition Needham_A (myPri theirPub:keyType) :=
   let y' := (pairFst (t1:=Basic) (t2:=Basic) y) in
   let y'' := (pairSnd y) in 
   send (encrypt y'' theirPub);
-  ReturnC (pair y' y''). Check Needham_A.
+  ReturnC (pair _ _ y' y''). Check Needham_A.
 
 Eval compute in protoExpLength (Needham_A aPri bPub).
 
 Definition Needham_B (myPri theirPub:keyType) :=
   x <- receive; (* x : Encrypt Basic *)
   let y := decryptM x myPri in (* y : Basic *)
-  send (encrypt (pair y bNonce) theirPub);
+  send (encrypt (pair _ _ y bNonce) theirPub);
   z <- receive; (* z : Encrypt Basic *)
   let z' := decryptM z myPri in    (* z' : Basic *)
-  ReturnC (t:= Pair Basic (Basic)) (pair y z'). Check Needham_B.
+  ReturnC (t:= Pair Basic (Basic)) (pair _ _ y z'). Check Needham_B.
 
 Definition Needham_A_good := (Needham_A aPri bPub).
 Definition Needham_B_good := (Needham_B bPri aPub).
@@ -331,7 +332,7 @@ Proof.
   simpl in H. assert (~ isBad aNonce). unfold not. intros. inversion H0. assert (k = inverse k'). apply (decryptSuccess aNonce k k' H0 H). assumption.
 Qed.
 
-Theorem needhamRauth : forall k k', runProtoR _ _ _ _ (Needham_A aPri k) (Needham_B k' aPub) (pair aNonce bNonce) -> k = inverse k'.
+Theorem needhamRauth : forall k k', runProtoR _ _ _ _ (Needham_A aPri k) (Needham_B k' aPub) (pair _ _ aNonce bNonce) -> k = inverse k'.
 Proof.
   intros. inversion H. subst.  apply inj_pair2_eq_dec in H8.  apply inj_pair2_eq_dec in H8.  apply inj_pair2_eq_dec in H8.  apply inj_pair2_eq_dec in H9.
   apply inj_pair2_eq_dec in H7. apply inj_pair2_eq_dec in H7. apply inj_pair2_eq_dec in H6. subst. Abort.
@@ -416,7 +417,7 @@ Definition protoStep1 :=
   y <- receive;
   send (basic 3);
   z <- receive;
-  ReturnC (t:= Pair Basic (Pair Basic Basic)) (pair x (pair y z)). Check protoStep1.
+  ReturnC (t:= Pair Basic (Pair Basic Basic)) (pair _ _ x (pair _ _ y z)). Check protoStep1.
 
 Definition protoStep2 :=
   a <- receive;
