@@ -95,8 +95,8 @@ Notation "x :&: y" := (protoExp (Offer x y))
 
 Notation "'send' n ; p" := (SendC n p)
                             (right associativity, at level 60).
-Notation "x <- 'receive' ; p " := (ReceiveC (fun x => p)) 
-                                    (right associativity, at level 60).
+(*Notation "x <- 'receive' ; p " := (ReceiveC (fun x => p)) 
+                                    (right associativity, at level 60). *)
 
 Notation "'offer'" := OfferC.
 
@@ -592,7 +592,7 @@ Inductive runProtoR : forall (T T':type), forall (t t':protoType), (protoExp T t
               (s:protoExp S s) (s0:protoExp S' s'),
     runProtoR _ _ _ _ r r0 m ->
     runProtoR _ _ _ _ s s0 m' ->
-    runProtoR _ _ _ _ (OfferC r s) (ChoiceC true r0 s0) (leither _ _ m)
+    runProtoR _ _ _ _ (OfferC r s) (ChoiceC true r0 s0) (leither _ _ m) 
 
 | offerRf : forall R R' S S' r r' s s' m m'
               (r:protoExp R r) (r0:protoExp R' r')
@@ -613,12 +613,12 @@ Definition protoSimple1 :=
   send payload1;
   EpsC.
 
-Definition protoSimple2 :=
+(*Definition protoSimple2 :=
   x <- receive;
-  ReturnC (t:=Basic) x.
+  ReturnC (t:=Basic) x. *)
 
-Example rEx2 : runProtoR _ _ _ _ protoSimple2 protoSimple1 (basic 1).
-Proof. repeat constructor. Qed.
+(*Example rEx2 : runProtoR _ _ _ _ protoSimple2 protoSimple1 (basic 1).
+Proof. repeat constructor. Qed. *)
 
 Theorem rIfDual {t t':protoType} {T T':type} (p1:protoExp T t) (p2:protoExp T' t') : DualR _ _ _ _ p1 p2 -> (exists m, runProtoR _ _ _ _ p1 p2 m).
 Proof.
@@ -674,10 +674,114 @@ Proof.
 
   inversion H0 reflexivity
   inversion H0. inversion H4. subst. simpl. trivial. inversion H4. subst. simpl. split. trivial. Abort *) *) *)
-  
+
+Theorem DualIfR {t t':protoType} {T T':type} : forall (p1:protoExp T t) (p2:protoExp T' t') m,
+    runProtoR T T' t t' p1 p2 m -> DualR T T' t t' p1 p2.
+Proof.
+  intros p1. generalize dependent t'. generalize dependent T'. 
+  induction p1; dependent inversion p2; try (intros m1 runR; inversion runR; contradiction).
+  intros. dep_destruct H1. constructor. apply IHp1 with (m:=m'). assumption.
+  intros. dep_destruct H2. constructor. apply H with (m0:=m'). assumption.
+  intros. destruct b. constructor. subst. apply IHp1_1 with (m:=m). dep_destruct H1. assumption. subst. dep_destruct H1. apply IHp1_2 with (m:=m'). assumption.
+  constructor. dep_destruct H1. subst. apply IHp1_1 with (m:=m). dep_destruct H1. assumption. subst. dep_destruct H1. apply IHp1_2 with (m:=m'). assumption.
+
+  intros. dep_destruct H1. constructor. apply IHp1_1 with (m:=m0). assumption.
+  apply IHp1_2 with (m:=m'). assumption.
+  constructor. apply IHp1_1 with (m:=m0). assumption. apply IHp1_2 with (m:=m'). assumption.
+
+  intros. constructor.
+Qed.
+
+
+(* fst (runProtoMultiStep p1 (p m) H) =
+   fst (runProtoMultiStep (send m; p1) (ReceiveC p) pf) *)
+
+Lemma osEval : forall t T p' T' p'' (p:(message t)->(protoExp T' p'')) (m:message t) (p1:protoExp T p') H pf , (runProtoMultiStep p1 (p m) H) =
+                                                                                                         (runProtoMultiStep (SendC m p1) (ReceiveC p) pf).
+Proof.
+Admitted.
+
+Lemma osEvalFlipped : forall t T p' T' p'' (p:(message t)->(protoExp T' p'')) (m:message t) (p1:protoExp T p') H pf , (runProtoMultiStep (p m) (p1) H) =
+                                                                                                         (runProtoMultiStep (ReceiveC p) (SendC m p1) pf).
+Proof.
+Admitted.
+
+Lemma osEvalChT : forall R r S s R' r' S' s' (p1_1:protoExp R r) (p:protoExp R' r') H2 (p1_2:protoExp S s) (p0:protoExp S' s') pf,
+    let (r0, r1) := (runProtoMultiStep p1_1 p H2) in
+    ((r0, (leither R' S' r1))       =
+     (runProtoMultiStep (choice true p1_1 p1_2) (offer p p0) pf)
+    ). Admitted.
+
+Lemma osEvalChF : forall R r S s R' r' S' s' (p1_1:protoExp R r) (p:protoExp R' r') (p1_2:protoExp S s) (p0:protoExp S' s') pf H2,
+    let (r0, r1) := (runProtoMultiStep p1_2 p0 H2) in
+    ((r0, (reither R' S' r1))       =
+     (runProtoMultiStep (choice false p1_1 p1_2) (offer p p0) pf)
+    ). Admitted.
+
+Lemma DualInner {t t':protoType} {T T':type} {p1:protoExp T t} {p2:protoExp T' t'} (pf:Dual p1 p2) : (Dual (runProto'OneStep p1 p2 pf)
+                              (runProto'OneStep p2 p1 (DualSymm pf))).
+Proof.
+Admitted.
+
+
+Theorem rIfMulti {t t':protoType} {T T':type} : forall (p1:protoExp T t) (p2:protoExp T' t') (pf:Dual p1 p2) m, fst (runProtoMultiStep p1 p2 pf) = m -> runProtoR T T' t t' p1 p2 m.
+Proof.
+   intros p1. generalize dependent t'. generalize dependent T'.
+   induction p1; dependent inversion p2; try (intros m1 runR; inversion runR; contradiction).
+   intros. inversion pf. subst. constructor. assert (Dual p1 (p m)).
+   assert ((runProto'OneStep (send m; p1) (ReceiveC p) pf) = p1).
+   apply IHp1 with (pf := H). assert ( (runProtoMultiStep p1 (p m) H) =
+   (runProtoMultiStep (send m; p1) (ReceiveC p) pf) ). apply osEval. rewrite H0. reflexivity.  
+   intros. inversion pf. subst. constructor. assert (Dual (p m) p0). admit. apply H with (pf := H0). assert ( (runProtoMultiStep (p m) p0 H0) =
+   (runProtoMultiStep (ReceiveC p) (send m; p0)  pf) ). apply osEvalFlipped. rewrite H1. reflexivity.
+
+
+   intros. inversion pf. subst. destruct b. assert (message R). exact ((fst (runProtoMultiStep (choice true p1_1 p1_2) (offer p p0) pf))).  assert (exists m, runProtoR S S0 s s0 p1_2 p0 m). exists (fst (runProtoMultiStep p1_2 p0 H3)).  apply IHp1_2 with (pf:=H3). reflexivity. destruct H.
+   
+   apply choiceRt with (m':=x). apply IHp1_1 with (pf := H2). assert (     let (r0, r1) := (runProtoMultiStep p1_1 p H2) in
+    ((r0, (leither _ _ r1))       =
+     (runProtoMultiStep (choice true p1_1 p1_2) (offer p p0) pf)
+    )). apply osEvalChT. admit. assumption.
+
+   assert (message S). exact ((fst (runProtoMultiStep (choice false p1_1 p1_2) (offer p p0) pf))). assert (exists m, runProtoR R R0 r r0 p1_1 p m). exists (fst (runProtoMultiStep p1_1 p H2)).  apply IHp1_1 with (pf:=H2). reflexivity. destruct H.
+   apply choiceRf with (m:=x). assumption. apply IHp1_2 with (pf:=H3). assert (     let (r0, r1) := (runProtoMultiStep p1_2 p0 H3) in
+    ((r0, (reither R0 S0 r1))       =
+     (runProtoMultiStep (choice false p1_1 p1_2) (offer p p0) pf)
+    )). apply osEvalChF. admit.
+
+   intros. inversion pf. subst. destruct b. assert ((fst (runProtoMultiStep (offer p1_1 p1_2) (choice true p p0) pf)) = (leither R S (fst (runProtoMultiStep p1_1 p H2)))). admit. rewrite H. apply offerRt with (m':= (fst (runProtoMultiStep p1_2 p0 H3))). apply IHp1_1 with (pf:=H2). reflexivity. apply IHp1_2 with (pf:=H3). reflexivity.
+
+   assert ((fst (runProtoMultiStep (offer p1_1 p1_2) (choice false p p0) pf)) = (reither R S (fst (runProtoMultiStep p1_2 p0 H3)))). admit. rewrite H. apply offerRf with (m:=(fst (runProtoMultiStep p1_1 p H2))). apply IHp1_1 with (pf:=H2). reflexivity. apply IHp1_2 with (pf:= H3). reflexivity.
+
+   intros. inversion H1. assert ((fst (runProtoMultiStep (ReturnC m) (ReturnC m0) pf)) = m). admit. rewrite H3. constructor. 
+   
+   
+   Check ( (fst (runProtoMultiStep (offer p1_1 p1_2) (choice true p p0) pf))). 
+
+   apply offerRt.
+
+   assert (message (Either R S)). exact (fst (runProtoMultiStep (offer p1_1 p1_2) (choice true p p0) pf)).  assert (exists m, runProtoR R R0 r r0 p1_1 p m). exists (fst (runProtoMultiStep p1_1 p H2)).  apply IHp1_1 with (pf:=H2). reflexivity. destruct H. apply offerRt with (m':=x).
+
+
+
+
+
+
+
+
+   
+   (*unfold runProtoMultiStep *) destruct pf. unfold runProtoMultiStep. assert ((max (protoExpLength p1) (protoExpLength (p m))) = 3). admit. assert ((max (protoExpLength (send m; p1)) (protoExpLength (ReceiveC p))) = 3). admit.  rewrite H0. rewrite H1. assert 
+
+
+
+
+   unfold runProtoMultiStep' at 2. cbn. unfold nextRtype.
+
+   unfold runProtoOneStep unfold runProto'OneStep
+                                                                                                                                           
 Theorem multiIfR {t t':protoType} {T T':type} (p1:protoExp T t) (p2:protoExp T' t') (pf:Dual p1 p2) : forall m, runProtoR T T' t t' p1 p2 m -> fst (runProtoMultiStep p1 p2 pf) = m.
 Proof. 
-  intros. destruct p1; destruct p2; destruct pf. Abort.
+  intros. dep_destruct p1. dep_destruct p2. dep_destruct H. unfold runProtoMultiStep. 
 
   (*destruct m0; destruct m. destruct n; destruct n0. inversion H. subst.  apply inj_pair2_eq_dec in H11.  apply inj_pair2_eq_dec in H11.  apply inj_pair2_eq_dec in H11.  apply inj_pair2_eq_dec in H12.  apply inj_pair2_eq_dec in H8.  apply inj_pair2_eq_dec in H8.  apply inj_pair2_eq_dec in H7. rewrite <- H11. rewrite <- H8. inversion H3.  apply inj_pair2_eq_dec in H17.  apply inj_pair2_eq_dec in H16.  apply inj_pair2_eq_dec in H14.  subst. inversion H3.  apply inj_pair2_eq_dec in H6.  apply inj_pair2_eq_dec in H4.  apply inj_pair2_eq_dec in H4.  apply inj_pair2_eq_dec in H2.  apply inj_pair2_eq_dec in H2.  apply inj_pair2_eq_dec in H16.  apply inj_pair2_eq_dec in H14. subst.  inversion H3.  apply inj_pair2_eq_dec in H6.  apply inj_pair2_eq_dec in H7.  apply inj_pair2_eq_dec in H7.  apply inj_pair2_eq_dec in H8. subst. cbv. subst. cbv 
 *)
