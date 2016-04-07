@@ -23,6 +23,8 @@ Require Import CpdtTactics.
 Require Import Eqdep_dec.
 Require Import Peano_dec.
 Require Import Coq.Program.Equality.
+Add LoadPath "/Users/adampetz/Documents/Fall_2015_Courses/armored/session/protosynth".
+Require Import Messages.
 
 (** Ltac helper functions for discharging cases generated from sumbool types
   using one or two boolean cases. *)
@@ -154,7 +156,7 @@ Inductive type : Type :=
   messages are pairs of a message and encrypted hash. *) 
 
 Inductive message : type -> Type :=
-| basic : nat -> message Basic
+| basic : Message -> message Basic
 | key : keyType -> message Key
 | encrypt {t:type} : message t -> keyType -> message (Encrypt t)
 | hash : forall t, message t -> message (Hash)
@@ -182,12 +184,13 @@ Definition pairFst{t1 t2: type} (m:message (Pair t1 t2)) : message t1 :=
   | _ => bad _                
   end.
 
+(*
 Definition pair1 := pair _ _ (basic 1) (basic 2).
 Eval compute in pairFst pair1.
 Definition pair1' := pair _ _ (bad Basic) (basic 2).
 Eval compute in pairFst pair1'.
 Definition pair1'' := pair _ _ (basic 1) (bad Basic).
-Eval compute in pairFst pair1''.
+Eval compute in pairFst pair1''. *)
 
 Definition pairSnd{t1 t2: type} (m:message (Pair t1 t2)) : message t2 :=
   match m in message t' return message (getP2Type t') with
@@ -196,10 +199,11 @@ Definition pairSnd{t1 t2: type} (m:message (Pair t1 t2)) : message t2 :=
   | _ => bad _                
   end.
 
+(*
 Definition pair2 := pair _ _ (basic 1) (basic 2).
 Eval compute in pairSnd pair2.
 Definition pair2' := pair  _ _ (basic 1) (bad Basic).
-Eval compute in pairSnd pair2'.
+Eval compute in pairSnd pair2'. *)
 
 (** Predicate that determines if a message cannot be decrypted.  Could be
   that it is not encrypted to begin with or the wrong key is used. *)
@@ -367,14 +371,16 @@ Definition decrypt'{t:type}(m:message (Encrypt t))(k:keyType) : (k = inverse (en
   (exact (fun (x:Type) => (fun x => x))).
   (exact (fun (x:Type) => (fun x => x))). Defined.
 
-  
-Definition almostMessage := decrypt' (encrypt (basic 0) (public 1)) (private 1).
+  (*
+Definition almostMessage := decrypt' (encrypt (basic 0) (public 1)) (private 1). *)
 
 Example same_inverse : forall n, (private n) = inverse (public n).
 Proof.
   intros. reflexivity. Qed.
 
+(*
 Eval compute in almostMessage (same_inverse 1).
+ *)
 
 Definition decryptM {t:type} (m:message (Encrypt t)) (k:keyType):message t :=
   match decrypt m k with
@@ -390,12 +396,13 @@ Definition decryptM {t:type} (m:message (Encrypt t)) (k:keyType):message t :=
   end.
  *)
 
+(*
 Definition enc1 := encrypt (basic 42) (public 1). Check enc1.
 Definition enc2 := encrypt enc1 (public 2).
 Eval compute in decryptM enc1 (private 1).
 Eval compute in decryptM enc1 (private 0).
 Eval compute in decryptM enc2 (private 2).
-Eval compute in decryptM (decryptM enc2 (private 2)) (private 1).
+Eval compute in decryptM (decryptM enc2 (private 2)) (private 1). *)
 
 (*Fixpoint decrypt'{t:type}(m:message (Encrypt t))(k:keyType):message t+{(is_not_decryptable m k)}.
 refine
@@ -419,16 +426,18 @@ Abort. *)
   end).
 *)
 
+(*
 Eval compute in decrypt(encrypt (basic 1) (symmetric 1)) (symmetric 1).
 
-Eval compute in decrypt(encrypt (basic 1) (symmetric 1)) (symmetric 2).
+Eval compute in decrypt(encrypt (basic 1) (symmetric 1)) (symmetric 2). *)
 
 (** Generate a signature using encryption and hash *)
 
 Definition sign{t:type}(m:message t)(k:keyType) :=
   (pair  _ _ m (encrypt (hash t m) k)).
 
-Eval compute in sign (basic 1) (public 1).
+(*
+Eval compute in sign (basic 1) (public 1). *)
 
 Ltac eq_key_helper :=
   match goal with
