@@ -225,30 +225,30 @@ Inductive runProtoBigStep : forall (T T':type), forall (t t':protoType) (p1:prot
     runProtoBigStep _ _ _ _ s s0 m' ->
     runProtoBigStep _ _ _ _ (OfferC r s) (ChoiceC false r0 s0) (reither _ _ m').
 
-Inductive step : forall (T R T':type), forall (t r t':protoType), (protoExp T t) -> (protoExp R r) -> (protoExp T' t') -> Prop :=
+Inductive step : forall (T R T' T'':type), forall (t r t' t'':protoType), (protoExp T t) -> (protoExp R r) -> ( (protoExp T' t') * (protoExp T'' t'') ) -> Prop :=
 | ST_Send_Rec : forall X x Y y  mt
                   (m:message mt) (p1':protoExp X x)
                   (f:(message mt) -> protoExp Y y),
-    step _ _ _ _ _ _ (SendC m p1') (ReceiveC f) p1'
+    step _ _ _ _ _ _ _ _ (SendC m p1') (ReceiveC f) (p1', (f m))
 | ST_Rec_Send : forall X x Y y mt (m:message mt) (p1':protoExp X x)
                        (f:(message mt) -> protoExp Y y),                     
-    step _ _ _ _ _ _ (ReceiveC f) (SendC m p1') (f m)
+    step _ _ _ _ _ _ _ _ (ReceiveC f) (SendC m p1') ((f m), p1')
 | ST_Choice_true : forall R R' S S' r r' s s'
                      (r:protoExp R r) (r0:protoExp R' r')
                      (s:protoExp S s) (s0:protoExp S' s'),
-    step _ _ _ _ _ _ (ChoiceC true r s) (OfferC r0 s0) r
+    step _ _ _ _ _ _ _ _ (ChoiceC true r s) (OfferC r0 s0) (r, r0)
 | ST_Choice_false : forall R R' S S' r r' s s'
                      (r:protoExp R r) (r0:protoExp R' r')
                      (s:protoExp S s) (s0:protoExp S' s'),
-    step _ _ _ _ _ _ (ChoiceC false r s) (OfferC r0 s0) s
+    step _ _ _ _ _ _ _ _ (ChoiceC false r s) (OfferC r0 s0) (s,s0)
 | ST_Offer_true : forall R R' S S' r r' s s'
                      (r:protoExp R r) (r0:protoExp R' r')
                      (s:protoExp S s) (s0:protoExp S' s'),
-    step _ _ _ _ _ _ (OfferC r0 s0) (ChoiceC true r s)  r0
+    step _ _ _ _ _ _ _ _ (OfferC r0 s0) (ChoiceC true r s)  (r0, r)
 | ST_Offer_false : forall R R' S S' r r' s s'
                      (r:protoExp R r) (r0:protoExp R' r')
                      (s:protoExp S s) (s0:protoExp S' s'),
-    step _ _ _ _ _ _ (OfferC r0 s0) (ChoiceC false r s) s0.
+    step _ _ _ _ _ _ _ _ (OfferC r0 s0) (ChoiceC false r s) (s0, s).
 
 Definition proto1 :=
   send (basic 1);
@@ -258,9 +258,9 @@ Definition proto2 :=
   x <- receive;
   ReturnC (t:=Basic) x.
 
-Notation "'stepe'" := (step _ _ _ _ _ _).
+Notation "'stepe'" := (step _ _ _ _ _ _ _ _).
 
-Example stepEx1 : stepe proto1 proto2 EpsC.
+Example stepEx1 : stepe proto1 proto2 (EpsC, (ReturnC (basic 1))).
 Proof.
   constructor.
 Qed.
@@ -272,7 +272,7 @@ Definition proto3 (b:bool) :=
 Definition proto4 :=
   offer EpsC
         proto2. Check proto4.
-
+(*
 Example stepEx2 : stepe (proto3 true) proto4 EpsC.
 Proof.
   unfold proto3. unfold proto4. constructor.
@@ -291,19 +291,19 @@ Qed.
 Example stepEx3 : stepe proto4 (proto3 false) proto2.
 Proof.
   constructor.
-Qed.
+Qed. *)
            
 Definition relation3 (T R T':type) (t r t':protoType)  :=  (*forall (T R T':type), forall (t r t':protoType),*) (protoExp T t) -> (protoExp R r) -> (protoExp T' t') -> Prop.
 
 Inductive multi : forall (T R T':type), forall (t r t':protoType), (protoExp T t) -> (protoExp R r) -> (protoExp T' t') -> Prop :=
 | multi_refl : forall (T R T':type) (t r t':protoType) (x:protoExp T t) (y:protoExp R r),
     multi _ _ _ _ _ _ x y x
-| multi_step : forall (T T' R R' S:type) (t t' r r' s:protoType),
+| multi_step : forall (T T' R R2 S:type) (t t' r r2 s:protoType),
     forall (x:protoExp T t) (x':protoExp T' t')
-      (y:protoExp R r) (y':protoExp R' r')
+      (y:protoExp R r) (y2:protoExp R2 r2) (*(y':protoExp R' r') *)
       (z:protoExp S s),
-                    step _ _ _ _ _ _ x x' y ->
-                    multi _ _ _ _ _ _ y y' z ->
+                    step _ _ _ _ _ _ _ _ x x' (y, y2) ->
+                    multi _ _ _ _ _ _ y y2 z ->
                     multi _ _ _ _ _ _ x x' z.
 
 Definition incPayload (m:message Basic) : (message Basic) :=
@@ -321,44 +321,87 @@ Definition proto6 :=
   y <- receive;
   send (incPayload y);
   EpsC.
-
+(*
 Example multiEx1 : multi _ _ _ _ _ _ proto5 proto6 (ReturnC (basic 2)).
 Proof. Print multi_step. specialize multi_step. intros. apply H with (R:=Basic) (R':=Basic) (r:=(Receive Basic (Eps Basic))) (r':=(Send Basic (Eps Basic))) (y:=  x <- receive; ReturnC (t:=Basic) x) (y':=send (incPayload (basic 1));EpsC). constructor. apply H with (R:=Basic) (R':=Basic) (r:=(Eps Basic)) (r':=(Eps Basic)) (y:= ReturnC (basic 2)) (y':=EpsC). constructor. constructor. exact (Basic). exact (Eps Basic).
-Qed.
+Qed. *)
 
-Theorem big_multistep_equiv {t t':protoType} {T T':type} {p1:protoExp T t} {p2:protoExp T' t'} : forall m, runProtoBigStep _ _ _ _ p1 p2 m ->
+Theorem big_multistep_equiv {t t':protoType} {T T':type} {p1:protoExp T t} {p2:protoExp T' t'} : forall m, runProtoBigStep _ _ _ _ p1 p2 m <->
                          multi _ _ _ _ _ _ p1 p2 (ReturnC m).
 Proof.
-  intros. generalize dependent t'. generalize dependent T'. dependent induction p1; destruct p2; try (intros H; inversion H; contradiction).
-  intros H. dep_destruct H. specialize multi_step. intros H0. apply H0 with (R:=Y) (R':=Y') (r:=p') (r':= p'0) (y:=p1) (y':=p m). constructor. apply IHp1. assumption.
-  intros H0. dep_destruct H0. specialize multi_step. intros H1. apply H1 with (R:=Y') (R':=Y) (r:=p') (r':= p'0) (y:=p m0) (y':=p2). constructor. apply H. assumption.
+  intros. split. generalize dependent t'. generalize dependent T'. dependent induction p1; destruct p2; try (intros H; inversion H; contradiction).
+  intros H. dep_destruct H. specialize multi_step. intros H0. apply H0 with (R:=Y) (r:=p') (y:=p1) (y2:=p m). constructor. apply IHp1. assumption.
+  intros H0. dep_destruct H0. specialize multi_step. intros H1. apply H1 with (R:=Y') (r:=p') (y:=p m0) (y2:=p2). constructor. apply H. assumption.
 
   intros HH. inversion HH.
   intros HH. inversion HH.
   intros HH. inversion HH.
   intros HH. inversion HH.
-  intros H. dep_destruct H. specialize multi_step. intros H0. apply H0 with (R:=R) (R':=R0) (r:=r) (r':=r0) (y:=p1_1) (y':=p2_1). constructor. apply IHp1_1. assumption.
-  specialize multi_step. intros H0. apply H0 with (R:=S) (R':=S0) (r:=s) (r':=s0) (y:=p1_2) (y':=p2_2). constructor. apply IHp1_2. assumption.
+  intros H. dep_destruct H. specialize multi_step. intros H0. apply H0 with (R:=R) (r:=r) (y:=p1_1) (y2:=p2_1). constructor. apply IHp1_1. assumption.
+  specialize multi_step. intros H0. apply H0 with (R:=S) (r:=s) (y:=p1_2) (y2:=p2_2). constructor. apply IHp1_2. assumption.
   
-  intros H. dep_destruct H. specialize multi_step. intros H0. apply H0 with (R:=R) (R':=R0) (r:=r) (r':=r0) (y:=p1_1) (y':=p2_1). constructor. (*apply IHp1_1.*) admit.
-  specialize multi_step. intros H0. apply H0 with (R:=S) (R':=S0) (r:=s) (r':=s0) (y:=p1_2) (y':=p2_2). constructor. (*apply IHp1_2.*) admit.
+  intros H. dep_destruct H. specialize multi_step. intros H0. apply H0 with (R:=R) (r:=r) (y:=p1_1) (y2:=p2_1). constructor. (*apply IHp1_1.*) admit.
+  specialize multi_step. intros H0. apply H0 with (R:=S) (r:=s) (y:=p1_2) (y2:=p2_2). constructor. (*apply IHp1_2.*) admit.
 
-  intros H. dep_destruct H. constructor. exact (Basic). exact (Eps Basic). Abort. 
+  intros H. dep_destruct H. constructor. exact (Basic). exact (Eps Basic).
+
+Admitted.
   (*
   intros H. dep_destruct H. specialize multi_step. intros H0. apply H0 with (R:=R) (R':=R0) (r:=r) (r':=r0) (y:=p1_1) (y':=p2_1). constructor. admit.
 
   specialize multi_step. intros H0. apply H0 with (R:=Either R S) (R':=R0) (r:=r) (r':=r0) (y:=p1_1) (y':=p2_1). constructor. apply IHp1_1. assumption.
   specialize multi_step. intros H0. apply H0 with (R:=S) (R':=S0) (r:=s) (r':=s0) (y:=p1_2) (y':=p2_2). constructor. apply IHp1_2. assumption. *)
 
-
 Theorem runProto_iff_multi{t t':protoType} {T T':type} {p1:protoExp T t} {p2:protoExp T' t'}{p:Dual p1 p2} : forall m,
       ((runProto p1 p2 p) = m) <-> multi _ _ _ _ _ _ p1 p2 (ReturnC m).
 Proof.
-Admitted.
+    intros. split. generalize dependent t'. generalize dependent T'. dependent induction p1; destruct p2; try (intros H; inversion H; contradiction).
+    intros. inversion p0. subst. specialize multi_step. intros H0. apply H0 with (R:=T) (r:=p') (y:=p1) (y2:=p m). constructor. apply IHp1 with (p:=H1). destruct p0. simpl. simpl_eq. cbn. assert (H1 = d). apply proof_irrelevance. rewrite H. reflexivity.
+    intros. inversion p0. subst. specialize multi_step. intros H0. apply H0 with (R:=T) (r:=p') (y:=p m0) (y2:=p2). constructor. apply H with (p0:=H2). destruct p0. simpl. simpl_eq. cbn. assert (H2 = d). apply proof_irrelevance. rewrite H1. reflexivity.
+
+    intros HH. inversion HH.
+    intros HH. inversion HH.
+    intros HH. inversion HH.
+    intros HH. inversion HH.
+    intros. destruct b.
+    dep_destruct H. destruct p. specialize multi_step. intros H0. apply H0 with (R:=R) (r:=r) (y:=p1_1) (y2:=p2_1). constructor. apply IHp1_1 with (p:=d). reflexivity.
+    dep_destruct H. destruct p. specialize multi_step. intros H0. apply H0 with (R:=S) (r:=s) (y:=p1_2) (y2:=p2_2). constructor. apply IHp1_2 with (p:=d0). reflexivity.
+    intros. destruct b. dep_destruct H. destruct p. specialize multi_step. intros H0. apply H0 with (R:=R) (r:=r) (y:=p1_1) (y2:=p2_1). constructor. (*apply IHp1_1. *) admit.
+    dep_destruct H. destruct p. specialize multi_step. intros H0. apply H0 with (R:=S) (r:=s)  (y:=p1_2) (y2:=p2_2). constructor. (*apply IHp1_2. *) admit.
+
+    intros. dep_destruct H. destruct p. apply multi_refl. exact t. exact (Eps t).
+
+    (* <- *)
+    generalize dependent t'. generalize dependent T'. dependent induction p1; destruct p2; try (intros H; inversion H; contradiction).
+    intros. inversion p0. subst. inversion H. simpl_existTs. subst.
+    destruct p0. simpl. simpl_eq. cbn. dep_destruct H10. apply IHp1. assumption.
+    intros.
+    inversion p0. subst. inversion H0. simpl_existTs. subst.
+    destruct p0. simpl. simpl_eq. cbn. dep_destruct H11. apply H. assumption.
+    
+    intros HH. inversion HH.
+    intros HH. inversion HH.
+    intros HH. inversion HH.                                                     intros HH. inversion HH.
+
+    intros.  destruct b. inversion p. inversion H. simpl_existTs. subst. destruct p. simpl. apply IHp1_1. dep_destruct H11. assumption.
+    inversion p. inversion H. simpl_existTs. subst. destruct p. simpl. apply IHp1_2. dep_destruct H11. assumption.
+
+    intros. destruct b. inversion p. inversion H. simpl_existTs. subst. destruct p. simpl. (*apply IHp1_1.*) admit.
+
+    inversion p. inversion H. simpl_existTs. subst. destruct p. simpl. (*apply IHp1_2. *) admit.
+    
+    intros. destruct p. simpl. inversion H. simpl_existTs. subst. inversion  H5. simpl_existTs. subst. reflexivity. simpl_existTs. subst. inversion H9.
+
+    Admitted.
 
 Theorem runProto_iff_bigStep{t t':protoType} {T T':type} {p1:protoExp T t} {p2:protoExp T' t'}{p:Dual p1 p2} : forall m,
     ((runProto p1 p2 p) = m) <-> runProtoBigStep _ _ _ _ p1 p2 m.
 Proof.
   intro m.
   assert (((runProto p1 p2 p) = m) <-> multi _ _ _ _ _ _ p1 p2 (ReturnC m)).
-  apply runProto_iff_multi. Admitted. 
+  apply runProto_iff_multi.
+  assert (runProtoBigStep _ _ _ _ p1 p2 m <->
+          multi _ _ _ _ _ _ p1 p2 (ReturnC m)).
+  apply big_multistep_equiv. symmetry in H0.
+  apply (iff_trans H H0).
+Qed.
