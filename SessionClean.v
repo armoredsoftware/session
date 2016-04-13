@@ -5,21 +5,15 @@ Require Import Eqdep_dec.
 Require Import Coq.Logic.FunctionalExtensionality.
 Require Import CpdtTactics.
 
+
+
 Inductive protoType : Type :=
 | Send : type -> protoType -> protoType
 | Receive : type -> protoType -> protoType
 | Choice : protoType -> protoType -> protoType
 | Offer : protoType -> protoType -> protoType  
 | Eps : type -> protoType.
-
-Fixpoint returnType (p:protoType) : type :=
-  match p with
-  | Send _ p' => returnType p'
-  | Receive _ p' => returnType p'
-  | _ => Basic
-  end.
-
-                                                  
+                                                 
 Inductive protoExp : type -> protoType -> Type :=
 | SendC {t:type} {T:type} {p':protoType}  : (message t) -> (protoExp T p')
     -> protoExp T (Send t p')
@@ -30,8 +24,6 @@ Inductive protoExp : type -> protoType -> Type :=
                                         -> protoExp (Either R S) (Offer r s)
 | ReturnC {t:type} : (message t) -> protoExp t (Eps t).
 
-
-Definition funType{t T:type}{p':protoType} (f:(message t) -> (protoExp T p')) : type := t.
 
 Notation "x :!: y" := (Send x y)
                         (at level 50, left associativity). 
@@ -148,7 +140,7 @@ Defined.
   | leither t1 _ _ => t1
   | reither _ t2 _ => t2
   | _ => t
-  end.*)
+  end.
 
 Definition realEither (t:type) (b:bool) : type :=
   match t with
@@ -173,6 +165,7 @@ Fixpoint realEither'{t t':protoType} {T T':type}
   end.
 
 Hint Unfold realEither' realEither.
+*)
 
 
 Inductive runProtoBigStep : forall (T T':type), forall (t t':protoType) (p1:protoExp T t) (p2:protoExp T' t') (m:message T)(*(realEither' p1 p2))*), Prop :=
@@ -184,9 +177,7 @@ Inductive runProtoBigStep : forall (T T':type), forall (t t':protoType) (p1:prot
             (f: ((message X) -> (protoExp Y' p2t)))
             (m:message X) m'(*(m':message (realEither' p1' (f m)))*)
             ,
-            
-            
-       
+                   
         runProtoBigStep _ _ p1t p2t p1' (f m) m' ->
         runProtoBigStep _ _ _ _ (SendC m p1') (ReceiveC f) m'
 | receiveR : forall X Y Y' p1t p2t m'
@@ -272,28 +263,26 @@ Definition proto3 (b:bool) :=
 Definition proto4 :=
   offer EpsC
         proto2. Check proto4.
-(*
-Example stepEx2 : stepe (proto3 true) proto4 EpsC.
+
+Example stepEx2 : stepe (proto3 true) proto4 (EpsC, EpsC).
 Proof.
   unfold proto3. unfold proto4. constructor.
 Qed.
 
-Example stepEx2' : stepe (proto3 false) proto4 proto1.
+Example stepEx2' : stepe (proto3 false) proto4 (proto1, proto2).
 Proof.
   constructor.
 Qed.
 
-Example stepEx3' : stepe proto4 (proto3 true) EpsC.
+Example stepEx3' : stepe proto4 (proto3 true) (EpsC, EpsC).
 Proof.
   unfold proto3. unfold proto4. constructor.
 Qed.
 
-Example stepEx3 : stepe proto4 (proto3 false) proto2.
+Example stepEx3 : stepe proto4 (proto3 false) (proto2, proto1).
 Proof.
   constructor.
-Qed. *)
-           
-Definition relation3 (T R T':type) (t r t':protoType)  :=  (*forall (T R T':type), forall (t r t':protoType),*) (protoExp T t) -> (protoExp R r) -> (protoExp T' t') -> Prop.
+Qed.
 
 Inductive multi : forall (T R T':type), forall (t r t':protoType), (protoExp T t) -> (protoExp R r) -> (protoExp T' t') -> Prop :=
 | multi_refl : forall (T R T':type) (t r t':protoType) (x:protoExp T t) (y:protoExp R r),
@@ -305,6 +294,8 @@ Inductive multi : forall (T R T':type), forall (t r t':protoType), (protoExp T t
                     step _ _ _ _ _ _ _ _ x x' (y, y2) ->
                     multi _ _ _ _ _ _ y y2 z ->
                     multi _ _ _ _ _ _ x x' z.
+
+Notation "'multie'" := (multi _ _ _ _ _ _).
 
 Definition incPayload (m:message Basic) : (message Basic) :=
   match m with
@@ -321,15 +312,18 @@ Definition proto6 :=
   y <- receive;
   send (incPayload y);
   EpsC.
-(*
+
 Example multiEx1 : multi _ _ _ _ _ _ proto5 proto6 (ReturnC (basic 2)).
-Proof. Print multi_step. specialize multi_step. intros. apply H with (R:=Basic) (R':=Basic) (r:=(Receive Basic (Eps Basic))) (r':=(Send Basic (Eps Basic))) (y:=  x <- receive; ReturnC (t:=Basic) x) (y':=send (incPayload (basic 1));EpsC). constructor. apply H with (R:=Basic) (R':=Basic) (r:=(Eps Basic)) (r':=(Eps Basic)) (y:= ReturnC (basic 2)) (y':=EpsC). constructor. constructor. exact (Basic). exact (Eps Basic).
-Qed. *)
+Proof. Print multi_step. specialize multi_step. intros. apply H with (R:=Basic) (R2:=Basic) (r:=(Receive Basic (Eps Basic))) (r2:=(Send Basic (Eps Basic))) (y:=  x <- receive; ReturnC (t:=Basic) x) (y2:=send (incPayload (basic 1));EpsC). constructor. apply H with (R:=Basic) (R2:=Basic) (r:=(Eps Basic)) (r2:=(Eps Basic)) (y:= ReturnC (basic 2)) (y2:=EpsC). constructor. constructor. exact (Basic). exact (Eps Basic).
+Qed.
 
 Theorem big_multistep_equiv {t t':protoType} {T T':type} {p1:protoExp T t} {p2:protoExp T' t'} : forall m, runProtoBigStep _ _ _ _ p1 p2 m <->
                          multi _ _ _ _ _ _ p1 p2 (ReturnC m).
 Proof.
-  intros. split. generalize dependent t'. generalize dependent T'. dependent induction p1; destruct p2; try (intros H; inversion H; contradiction).
+  intros. split.
+
+  (* -> *)
+  generalize dependent t'. generalize dependent T'. dependent induction p1; destruct p2; try (intros H; inversion H; contradiction).
   intros H. dep_destruct H. specialize multi_step. intros H0. apply H0 with (R:=Y) (r:=p') (y:=p1) (y2:=p m). constructor. apply IHp1. assumption.
   intros H0. dep_destruct H0. specialize multi_step. intros H1. apply H1 with (R:=Y') (r:=p') (y:=p m0) (y2:=p2). constructor. apply H. assumption.
 
@@ -345,17 +339,16 @@ Proof.
 
   intros H. dep_destruct H. constructor. exact (Basic). exact (Eps Basic).
 
-Admitted.
-  (*
-  intros H. dep_destruct H. specialize multi_step. intros H0. apply H0 with (R:=R) (R':=R0) (r:=r) (r':=r0) (y:=p1_1) (y':=p2_1). constructor. admit.
-
-  specialize multi_step. intros H0. apply H0 with (R:=Either R S) (R':=R0) (r:=r) (r':=r0) (y:=p1_1) (y':=p2_1). constructor. apply IHp1_1. assumption.
-  specialize multi_step. intros H0. apply H0 with (R:=S) (R':=S0) (r:=s) (r':=s0) (y:=p1_2) (y':=p2_2). constructor. apply IHp1_2. assumption. *)
+  (* <- *)
+  Admitted.
 
 Theorem runProto_iff_multi{t t':protoType} {T T':type} {p1:protoExp T t} {p2:protoExp T' t'}{p:Dual p1 p2} : forall m,
       ((runProto p1 p2 p) = m) <-> multi _ _ _ _ _ _ p1 p2 (ReturnC m).
 Proof.
-    intros. split. generalize dependent t'. generalize dependent T'. dependent induction p1; destruct p2; try (intros H; inversion H; contradiction).
+  intros. split.
+
+  (* -> *)
+  generalize dependent t'. generalize dependent T'. dependent induction p1; destruct p2; try (intros H; inversion H; contradiction).
     intros. inversion p0. subst. specialize multi_step. intros H0. apply H0 with (R:=T) (r:=p') (y:=p1) (y2:=p m). constructor. apply IHp1 with (p:=H1). destruct p0. simpl. simpl_eq. cbn. assert (H1 = d). apply proof_irrelevance. rewrite H. reflexivity.
     intros. inversion p0. subst. specialize multi_step. intros H0. apply H0 with (R:=T) (r:=p') (y:=p m0) (y2:=p2). constructor. apply H with (p0:=H2). destruct p0. simpl. simpl_eq. cbn. assert (H2 = d). apply proof_irrelevance. rewrite H1. reflexivity.
 
