@@ -24,7 +24,7 @@ Require Import Eqdep_dec.
 Require Import Peano_dec.
 Require Import Coq.Program.Equality.
 Add LoadPath "/Users/adampetz/Documents/Fall_2015_Courses/armored/session/protosynth".
-Require Import Messages.
+(*Require Import Messages.*)
 
 (** Ltac helper functions for discharging cases generated from sumbool types
   using one or two boolean cases. *)
@@ -156,9 +156,9 @@ Inductive type : Type :=
   messages are pairs of a message and encrypted hash. *) 
 
 Inductive message : type -> Type :=
-| basic : Message -> message Basic
+| basic : nat -> message Basic
 | key : keyType -> message Key
-| encrypt {t:type} : message t -> keyType -> message (Encrypt t)
+| encrypt (t:type) : message t -> keyType -> message (Encrypt t)
 | hash : forall t, message t -> message (Hash)
 | pair : forall t1 t2, message t1 -> message t2 -> message (Pair t1 t2)
 | leither : forall t1 t2, message t1 -> message (Either t1 t2)
@@ -210,14 +210,14 @@ Eval compute in pairSnd pair2'. *)
 
 Definition is_not_decryptable{t:type}(m:message t)(k:keyType):Prop :=
   match m with
-  | encrypt m' k' => k <> inverse k'
+  | encrypt _ m' k' => k <> inverse k'
   (*| bad _ => False     *)                         
   | _ => True
   end.
 
 Definition is_decryptable{t:type}(m:message t)(k:keyType):Prop :=
   match m with
-  | encrypt m' k' => k = inverse k'
+  | encrypt _ m' k' => k = inverse k'
   (*| bad _ => True*)                                
   | _ => False
   end.
@@ -283,7 +283,7 @@ Definition decrypt_type(t:type):type :=
   end.
 
 Inductive decryptable {t:type} : (message (Encrypt t)) -> keyType -> Prop :=
-| cDecryptable {m':message t} {j:keyType} : decryptable (encrypt m' j) (inverse j).
+| cDecryptable {m':message t} {j:keyType} : decryptable (encrypt _ m' j) (inverse j).
 
 Fixpoint decrypt{t:type}(m:message (Encrypt t))(k:keyType):
   (message t * is_decryptable m k)+
@@ -291,7 +291,7 @@ Fixpoint decrypt{t:type}(m:message (Encrypt t))(k:keyType):
   refine match m in message t' return (message (decrypt_type t') * is_decryptable m k) + {(is_not_decryptable m k)} with
          | basic _ => inright _ _
          | key _ => inright _ _
-         | encrypt m' j => (if (is_inverse k j) then (inleft _ (m',_)) else (inright _ _ ))
+         | encrypt _ m' j => (if (is_inverse k j) then (inleft _ (m',_)) else (inright _ _ ))
          | hash _ _ => inright _ _
          | pair _ _ _ _ => inright _ _
          | leither _ _ _ => inright _ _
@@ -336,12 +336,12 @@ Defined.
 
 Definition encrypted_with {t:type}(m:message (Encrypt t)) : keyType :=
   match m with
-  | encrypt m' j => j
+  | encrypt _ m' j => j
   | _ => (public 0)
   end.
 
 Eval compute in encrypted_with (bad (Encrypt Basic)).
-Eval compute in encrypted_with (encrypt _ (public 33)).
+Eval compute in encrypted_with (encrypt _ _ (public 33)).
 
 Definition decrypt'{t:type}(m:message (Encrypt t))(k:keyType) : (k = inverse (encrypted_with m)) -> message t.
   refine
@@ -349,7 +349,7 @@ Definition decrypt'{t:type}(m:message (Encrypt t))(k:keyType) : (k = inverse (en
   match m with
          | basic _ => _
          | key _ => _
-         | encrypt m' j => _
+         | encrypt _ m' j => _
          | hash _ _ =>  _
          | pair  _ _ _ _ =>  _
          | leither _ _ _ => _
@@ -434,7 +434,7 @@ Eval compute in decrypt(encrypt (basic 1) (symmetric 1)) (symmetric 2). *)
 (** Generate a signature using encryption and hash *)
 
 Definition sign{t:type}(m:message t)(k:keyType) :=
-  (pair  _ _ m (encrypt (hash t m) k)).
+  (pair  _ _ m (encrypt _ (hash t m) k)).
 
 (*
 Eval compute in sign (basic 1) (public 1). *)
@@ -476,7 +476,7 @@ Defined.
 Theorem message_eq_lemma: forall t, forall m:(message t), forall m':(message t), forall k k',
     {m=m'}+{m<>m'} ->
     {k=k'}+{k<>k'} ->
-    {(encrypt m k)=(encrypt m' k')}+{(encrypt m k) <> (encrypt m' k')}.
+    {(encrypt _ m k)=(encrypt _ m' k')}+{(encrypt _ m k) <> (encrypt _ m' k')}.
 Proof.
   intros.
   destruct H; destruct H0.
