@@ -9,30 +9,37 @@ Require Import Coq.Logic.Classical_Pred_Type.
 
 Inductive protoType : Type :=
 | Send : type -> protoType -> protoType
-| Receive : type -> protoType -> protoType                                
+| Receive : type -> protoType -> protoType
+| Sub : protoType -> protoType -> protoType -> protoType      
 | Choice : protoType -> protoType -> protoType
 | Offer : protoType -> protoType -> protoType  
 | Eps : type -> protoType.
-                                                 
-Inductive protoExp : protoType -> Type :=
-| SendC {t:type} {p':protoType}  : (message t) -> (protoExp p')
-    -> protoExp (Send t p')
-| ReceiveC {t:type} {p':protoType} : ((message t)->(protoExp p'))
-                                     -> protoExp (Receive t p')
-| ChoiceC (b:bool) {r s:protoType} :(protoExp r) -> (protoExp s)
-    -> (protoExp (Choice r s))
-| OfferC {r s : protoType} : (protoExp r) -> (protoExp s)
-                                        -> protoExp (Offer r s)
-| ReturnC {t:type} : (message t) -> protoExp (Eps t).
 
 Fixpoint returnType (pt : protoType) : type :=
   match pt with
   | Eps t => t
   | Send _ pt' => returnType pt'
   | Receive _ pt' => returnType pt'
+  | Sub _ _ pt' => returnType pt'                             
   | Choice pt' pt'' => Either (returnType pt') (returnType pt'')
   | Offer pt' pt'' => Either (returnType pt') (returnType pt'')
   end.
+                                                 
+Inductive protoExp : protoType -> Type :=
+| SendC {t:type} {p':protoType}  : (message t) -> (protoExp p')
+    -> protoExp (Send t p')
+| ReceiveC {t:type} {p':protoType} : ((message t)->(protoExp p'))
+                                     -> protoExp (Receive t p')
+| SubC {p1t p2t p':protoType} : (protoExp p1t) -> (protoExp p2t)
+    -> ((message (returnType p1t)) -> (protoExp p'))
+    -> protoExp (Sub p1t p2t p')                             
+| ChoiceC (b:bool) {r s:protoType} :(protoExp r) -> (protoExp s)
+    -> (protoExp (Choice r s))
+| OfferC {r s : protoType} : (protoExp r) -> (protoExp s)
+                                        -> protoExp (Offer r s)
+| ReturnC {t:type} : (message t) -> protoExp (Eps t).
+
+
 
 
 Notation "x :!: y" := (Send x y)
@@ -59,6 +66,8 @@ Notation "'send' n ; p" := (SendC n p)
                             (right associativity, at level 60).
 Notation "x <- 'receive' ; p " := (ReceiveC (fun x => p)) 
                                     (right associativity, at level 60).
+Notation "x <- 'doProto' p1 p2 ; p" := (SubC p1 p2 (fun x => p))
+                      (right associativity, at level 60, p1 ident, p2 ident).
 
 Notation "'offer'" := OfferC.
 
@@ -66,49 +75,85 @@ Notation "'choice'" := ChoiceC.
 
 Definition EpsC := ReturnC (basic 0).
 
-Fixpoint DualT (t t':protoType) : Prop :=
+Fixpoint DualT (t:protoType) := fix DualT1 (t':protoType) : Prop :=
   match t with
   | Send p1T p1' =>
     match t' with
-    | Receive p2T p2' => (p1T = p2T) /\ (DualT p1' p2')    
+    | Receive p2T p2' => (p1T = p2T) /\ (DualT p1' p2')
+    | Sub _ _ p' => DualT1 p'
     | _ => False
     end
   | Receive p1T p1' =>
     match t' with
-    | Send p2T p2' => (p1T = p2T) /\ (DualT p1' p2')                                
+    | Send p2T p2' => (p1T = p2T) /\ (DualT p1' p2')                               | Sub _ _ p' => DualT1 p'
     | _ => False
     end
   | Choice p1' p1'' =>
     match t' with
-    | Offer p2' p2'' => (DualT p1' p2') /\ (DualT p1'' p2'')                                                             
+    | Offer p2' p2'' => (DualT p1' p2') /\ (DualT p1'' p2'')                       | Sub _ _ p' => DualT1 p'                                   
     | _ => False
     end
   | Offer p1' p1'' =>
     match t' with
-    | Choice p2' p2'' => (DualT p1' p2') /\ (DualT p1'' p2'')                                                               
+    | Choice p2' p2'' => (DualT p1' p2') /\ (DualT p1'' p2'')                      | Sub _ _ p' => DualT1 p'                                             
     | _ => False
     end
   | Eps _ =>
     match t' with
-    | Eps _ => True           
+    | Eps _ => True
+    | Sub _ _ p' => DualT1 p'
     | _ => False
     end
+  | Sub pt pt' p' => (*(DualT pt pt') /\*) DualT p' t'
   end.
 
-Fixpoint DualT_dec (t t':protoType) : {DualT t t'} + {~ DualT t t'}.
+Fixpoint DualT_dec (t:protoType) (t':protoType) : {DualT t t'} + {~ DualT t t'}.
 Proof.
   destruct t; destruct t';
 
   (* Eliminate all un-interesting cases *)
-  try (right; unfold not; intros; inversion H; contradiction);
+  try (right; unfold not; intros; inversion H; contradiction).
 
   (* For the Send/Receive, Receive/Send cases *)
-  try (
+  destruct (eq_type_dec t t1); destruct (DualT_dec t0 t').  left. split; assumption. right. unfold not. intros. inversion H. contradiction.
+  right. unfold not. intros. inversion H. contradiction.
+  right. unfold not. intros. inversion H. contradiction.
+
+  
+
+  dep_destruct (DualT_dec (Send t t0) t'3).
+  left. assumption. right. assumption.
+    try (
   destruct (eq_type_dec t t1); destruct (DualT_dec t0 t');
   try (right; unfold not; intros; inversion H; contradiction);
   try (left; split; assumption)
-  );
+      ).
 
+    dep_destruct (DualT_dec (Receive t t0) t'3).
+    left. assumption. right. assumption.
+
+    dep_destruct (DualT_dec t3 (Send t t')).
+    left. assumption. right. assumption.
+
+    dep_destruct (DualT_dec  t3 (Receive t t')).
+    left. assumption. right. assumption.
+
+    dep_destruct (DualT_dec t3 (Sub t'1 t'2 t'3)).
+    left. simpl. assumption. right. simpl. assumption.
+
+    dep_destruct (DualT_dec t3 (Choice t'1 t'2)).
+    left. simpl. assumption. right. simpl. assumption.
+
+    dep_destruct (DualT_dec t3 (Offer t'1 t'2)).
+    left. simpl. assumption. right. simpl. assumption.
+
+    dep_destruct (DualT_dec t3 (Eps t)).
+    left. simpl. assumption. right. simpl. assumption.
+
+    dep_destruct (DualT_dec (Choice t1 t2) t'3).
+    left. simpl. assumption. right. simpl. assumption.
+
+    
   (* For the Choice/Offer, Offer/Choice cases *)
   try (
   destruct (DualT_dec t1 t'1); destruct (DualT_dec t2 t'2);
@@ -116,10 +161,20 @@ Proof.
   try( left; split; assumption)
     ).
 
-  (* Eps/Eps case *)
-  left. simpl. trivial.
-  
-Defined.
+    dep_destruct (DualT_dec (Offer t1 t2) t'3).
+    left. simpl. assumption. right. simpl. assumption.
+
+      (* For the Choice/Offer, Offer/Choice cases *)
+  try (
+  destruct (DualT_dec t1 t'1); destruct (DualT_dec t2 t'2);
+  try (right; unfold not; intros; inversion H; contradiction);
+  try( left; split; assumption)
+    ).
+
+    dep_destruct (DualT_dec (Eps t) t'3).
+    left. simpl. assumption. right. simpl. assumption.
+    left. simpl. trivial.
+Abort.
 
 Definition Dual {t t':protoType} (p1:protoExp t) (p2:protoExp t') : Prop := DualT t t'.
 
@@ -150,6 +205,7 @@ Proof.
 Defined.
 *)
 
+(*
 Fixpoint runProto {t t':protoType} (p1:protoExp t) (p2:protoExp t')
   : (Dual p1 p2) -> (message (returnType t)).
 Proof.
@@ -157,6 +213,7 @@ Proof.
        intro pf. destruct p1 (*eqn : p1Val*); destruct p2 (*eqn : p2Val*); try (inversion pf).
 
        subst. apply (runProto _ _ p1 (p m)). unfold Dual. assumption.
+       apply (runProto _ _ (send m; p1) (p (runProto _ _ p2_1 p2_2 _))).
        subst. apply (runProto _ _ (p m) p2). unfold Dual. assumption.
 
        destruct b.
@@ -174,11 +231,26 @@ Proof.
        apply (runProto _ _ p1_2 p2_2 ). unfold Dual. assumption. exact (reither _ _ X).
        exact m.
 Defined.
+*)
 
 Inductive runProtoBigStep : forall (t t':protoType) (rt:type) (p1:protoExp t) (p2:protoExp t') (m:message rt (*(realEither p1 p2)*) (*(returnType t)*)), Prop :=
   
 | returnR : forall T T' (m:message T) (m':message T'),
-    runProtoBigStep _ _ _ (ReturnC m) (ReturnC m') m
+    runProtoBigStep _ _ _ (ReturnC m) (ReturnC m') m                 
+| subSkipL : forall s1t s2t (p1s:protoExp s1t) (p2s:protoExp s2t)
+               (m:message (returnType s1t))
+               p1't (p1':(message (returnType s1t)) -> protoExp p1't)
+               T (m':message T) p2t (p2:protoExp p2t),
+               runProtoBigStep _ _ _ p1s p2s m ->
+               runProtoBigStep _ _ _ (p1' m) p2 m' ->
+               runProtoBigStep _ _ _ (SubC p1s p2s p1') p2 m'
+| subSkipR : forall s1t s2t (p1s:protoExp s1t) (p2s:protoExp s2t)
+               (m:message (returnType s1t))
+               p1't (p1':(message (returnType s1t)) -> protoExp p1't)
+               T (m':message T) p2t (p2:protoExp p2t),
+               runProtoBigStep _ _ _ p1s p2s m ->
+               runProtoBigStep _ _ _  p2 (p1' m) m' ->
+               runProtoBigStep _ _ _  p2 (SubC p1s p2s p1') m'   
 | sendR : forall X p1t p2t rt
             (p1':protoExp p1t)
             (f: ((message X) -> (protoExp p2t)))
@@ -245,7 +317,71 @@ Proof.
   Qed.
 *)
 
+Definition isValue {t:protoType} (p:protoExp t) : Prop :=
+  match p with
+  | ReturnC _ => True
+  | _ => False
+  end.
+
+Inductive value {T:type} : (protoExp (Eps T)) -> Prop :=
+  v_ret : forall m, value (ReturnC m).
+
+Theorem ex_value : value (ReturnC (basic 1)).
+Proof.
+  constructor. Qed.
+
+Theorem isValue_value {t:type} : forall (p:protoExp (Eps t)),
+    isValue p -> value p.
+Proof.
+  intros. dep_destruct p. constructor.
+Qed.
+
+Theorem ex_isValue : isValue (ReturnC (basic 1)).
+Proof.
+  simpl. trivial.
+Qed.
+
+Definition notSub {t:protoType} (p:protoExp t) : Prop :=
+  match p with
+  | SubC _ _ _ => False
+  | _ => True
+  end.
+
 Inductive step : forall (t r t':protoType), (protoExp t) -> (protoExp r) -> (protoExp t') -> Prop :=
+| ST_SubL : forall t (m:message t) t' (m':message t') (*s1t s2t (p1s:protoExp s1t) (p2s:protoExp s2t) *)
+               p1't (p1':(message t) -> protoExp p1't) p2t (p2:protoExp p2t),
+
+    (*isValue p1s -> isValue p2s ->*)
+    step _ _ _ (SubC (ReturnC m) (ReturnC m') p1') p2 (p1' m)
+
+| ST_SubL1 : forall s1t s2t (p1s:protoExp s1t) (p2s:protoExp s2t)
+               p1s't (p1s':protoExp p1s't) p2s't (p2s':protoExp p2s't)
+               p1't (p1':(message (returnType s1t)) -> protoExp p1't)
+               p1''t (p1'':(message (returnType p1s't)) -> protoExp p1''t)
+               p2t (p2:protoExp p2t),
+    
+    (*isValue p1s -> isValue p2s ->*)
+    step _ _ _ p1s p2s p1s' ->
+    step _ _ _ p2s p1s p2s' ->
+    step _ _ _ (SubC p1s p2s p1') p2 (SubC p1s' p2s' p1'')
+
+| ST_SubR : forall t (m:message t) t' (m':message t') (*s1t s2t (p1s:protoExp s1t) (p2s:protoExp s2t) *)
+               p1't (p1':(message t) -> protoExp p1't) p2t (p2:protoExp p2t),
+
+    notSub p2 -> 
+    step _ _ _ p2 (SubC (ReturnC m) (ReturnC m') p1') p2
+
+| ST_SubR1 : forall s1t s2t (p1s:protoExp s1t) (p2s:protoExp s2t)
+               p1s't (p1s':protoExp p1s't) p2s't (p2s':protoExp p2s't)
+               p1't (p1':(message (returnType s1t)) -> protoExp p1't)
+               p1''t (p1'':(message (returnType p1s't)) -> protoExp p1''t)
+               p2t (p2:protoExp p2t),
+    
+    notSub p2 ->
+    step _ _ _ p1s p2s p1s' ->
+    step _ _ _ p2s p1s p2s' ->
+    step _ _ _ p2 (SubC p1s p2s p1') p2 (*(SubC p1s' p2s' p1'')*)
+    
 | ST_Send_Rec : forall x y  mt
                   (m:message mt) (p1':protoExp x)
                   (f:(message mt) -> protoExp y),
@@ -360,6 +496,7 @@ Qed.
 Definition nf_of {p1t p2t t t':protoType} (p1:protoExp p1t) (p2:protoExp p2t)(res1 : protoExp t)(res2 : protoExp t') :=
   (multi _ _ _ p1 p2 res1) /\ (multi _ _ _ p2 p1 res2) /\ normal_form res1 res2.
 
+(*
 Definition nextType{t t':protoType} (p1:protoExp t) (p2:protoExp t') : (Dual p1 p2) -> protoType.
   intros; destruct p1; destruct p2; try inversion H. exact p'. exact p'. destruct b. exact r. exact s. destruct b. exact r. exact s. exact (Eps t0).
 Defined.
@@ -479,24 +616,6 @@ Proof.
   constructor. constructor.
   apply multi_step with (r:=(Eps Basic)) (r2:=(Eps Basic)) (y:= ReturnC (basic 2)) (y2:=EpsC).
   constructor. constructor. constructor.
-Qed.
-
-Definition isValue {t:protoType} (p:protoExp t) : Prop :=
-  match p with
-  | ReturnC _ => True
-  | _ => False
-  end.
-
-Inductive value {T:type} : (protoExp (Eps T)) -> Prop :=
-  v_ret : forall m, value (ReturnC m).
-
-Theorem ex_value : value (ReturnC (basic 1)).
-Proof.
-  constructor. Qed.
-
-Theorem ex_isValue : isValue (ReturnC (basic 1)).
-Proof.
-  simpl. trivial.
 Qed.
 
 Theorem strong_progress {t t':protoType} :
@@ -638,100 +757,7 @@ Proof.
   intros. apply value_is_nf in H0. assumption.
 Qed.
 
-Inductive protocolComposition : Type :=
-| protoEnd : protocolComposition
-| protoComp {p1t p2t:protoType} : (protoExp p1t) -> (protoExp p2t) -> 
-    ((message (returnType p1t)) -> protocolComposition) ->  
-    protocolComposition.
-
-Notation "x <- 'doProto' p1 p2 ; p" := (protoComp p1 p2 (fun x => p))
-  (right associativity, at level 70, p1 ident, p2 ident).
-
-Definition proto1' :=
-  x <- receive;
-  let y := (incPayload x) in
-  send y;
-    ReturnC y.
-
-Definition other (m:message Basic (*Key*)) :=
-  send m;
-  x <- receive;
-  let _ := incPayload x in
-  ReturnC (*(key (public 0)).*) (t:=Basic) x.
-
-Definition proto2' :=
-  x <- receive;
-  let y := incPayload (incPayload x) in
-  send y;
-  ReturnC y.
-
-Definition payload := (basic 0).
-Definition p1s := (other (*key (public 1))*) payload).
-                                    
-Definition client :=
-  x <- doProto p1s proto1';
-  let aaa := (other x) in
-  y  <- doProto aaa proto2' ; 
-  protoEnd.
- 
-  (*protoComp p1s proto1' (fun x =>
-  protoComp (other x) proto2' (fun (y:message Basic) =>
-                                 protoEnd _ y)). *)
-
-Definition messageEq {t t':type} (m:message t) (m':message t') : Prop.
-Proof.
-  destruct (eq_type_dec t t').
-  subst. exact (m = m').
-  exact False.
-Defined.
-
-Definition isEnd (p:protocolComposition) : bool :=
-  match p with
-  | protoEnd => true
-  | _ => false
-  end.
-
-
-
-Fixpoint biggerStep{t:type} (p:protocolComposition) (m:message t) : Prop :=
-  match p with
-  | protoEnd => False (* should never reach this case*)
-  | protoComp p1 p2 f  =>
-    exists m', runProtoBigStep _ _ _ p1 p2 m' /\
-          if(isEnd (f m')) then messageEq m' m
-          else biggerStep (f m') m
-  end.
-    
-  (*| protoComp p1 p2 f  => exists m', runProtoBigStep _ _ _ p1 p2 m' /\
-                        biggerStep (f m') m
-                              
-  end. *)
-
-Example incTwice : biggerStep client (basic 3).
-Proof.
-  cbn.
-  unfold p1s. unfold other. unfold proto1'. unfold proto2'.
-  eexists. split; repeat constructor.
-  eexists. split; repeat constructor.
-Qed.
-
-
-Fixpoint superMultiStep{t:type} (p:protocolComposition) (m:message t) : Prop :=
-  match p with
-  | protoEnd => False (* should never reach this case*)
-  | protoComp p1 p2 f  =>
-    exists m', multi _ _ _ p1 p2 (ReturnC m') /\
-          if(isEnd (f m')) then messageEq m' m
-          else biggerStep (f m') m
-  end.
-
-Example incTwiceMulti : superMultiStep client (basic 3).
-Proof.
-  cbn.
-  unfold p1s. unfold other. unfold proto1'. unfold proto2'.
-  eexists. split; repeat econstructor.
-Qed.
-
+*)
 
 
 
