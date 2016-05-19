@@ -96,10 +96,46 @@ Definition someTypes : list Set := nat :: bool :: nil.
 
 Definition someMtypes : list Type := (message Basic) :: (message Key) :: nil.
 
+End hlisttry.
+
+Unset Implicit Arguments. 
+Unset Asymmetric Patterns.
+
+
+Definition isSend {t:protoType} (p:protoExp t) : Prop :=
+  match p with
+  | SendC _ _ => True
+  | _ => False
+  end.
+
+Theorem isSend_dec {t:protoType} (p:protoExp t) : {isSend p} + {~(isSend p)}.
+Proof.
+  dep_destruct p;
+  try (right; unfold not; intros; inversion H; contradiction).
+  left. simpl. trivial.
+Defined.
+
+Definition isReceive {t:protoType} (p:protoExp t) : Prop :=
+  match p with
+  | ReceiveC _ => True
+  | _ => False
+  end.
+
+
+
+           
+Theorem isReceive_dec {t:protoType} (p:protoExp t) : {isReceive p} + {~(isReceive p)}.
+Proof.
+  dep_destruct p;
+  try (right; unfold not; intros; inversion H; contradiction).
+  left. simpl. trivial.
+Defined.
+
+
 Fixpoint typesLearned' {t t':protoType} (p1:protoExp t) (p2:protoExp t')
   (pf:Dual p1 p2) (l':list Type) : list Type.
 Proof.
-  intros. destruct p1; destruct p2; try (inversion pf).
+  intros. destruct p1; destruct p2; try inversion pf.
   subst. exact (typesLearned' _ _ p1 (p m) H0 l').
   assert (list Type). subst. exact (typesLearned' _ _ (p m) p2 H0 l').
   exact ((message t) :: X).
@@ -111,6 +147,26 @@ Proof.
   exact (typesLearned' _ _ p1_2 p2_2 H0 l').
   exact l'.
 Defined.
+
+
+Definition getRest{t0 t:type}{p'0 p':protoType} (f:(message t0 -> protoExp p'0)) (m:message t) (p1:protoExp p') (pf:Dual(send m; p1) (ReceiveC f))  : (protoExp p'0).
+Proof.
+  inversion pf. subst.
+  exact (f m).
+Defined.
+
+Print getRest.
+
+
+
+  t : type
+  p' : protoType
+  m : message t
+  p1 : protoExp p'
+  t0 : type
+  p'0 : protoType
+  p : message t0 -> protoExp p'0
+  pf : Dual (send m; p1) (x <- receive ; p x)
 
 Definition typesLearned {t t':protoType} (p1:protoExp t) (p2:protoExp t')
   (pf:Dual p1 p2) : list Type := typesLearned' p1 p2 pf nil.

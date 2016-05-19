@@ -723,7 +723,7 @@ Fixpoint superMultiStep{t:type} (p:protocolComposition) (m:message t) : Prop :=
   | protoComp p1 p2 f  =>
     exists m', multi _ _ _ p1 p2 (ReturnC m') /\
           if(isEnd (f m')) then messageEq m' m
-          else biggerStep (f m') m
+          else superMultiStep (f m') m
   end.
 
 Example incTwiceMulti : superMultiStep client (basic 3).
@@ -797,60 +797,150 @@ Definition stl {t t':protoType} (p1:protoExp t) (p2:protoExp t')
   | _ => l
   end.
   
-Inductive stepM{l:list Type} (ml:mList l) : forall (t r t':protoType) (p1:protoExp t) (p2:protoExp r), (protoExp t') -> mList (stl p1 p2 l) -> Prop :=
+Inductive stepM : forall l l' (ml:mList l) (t r t':protoType) (p1:protoExp t) (p2:protoExp r), (protoExp t') -> mList l' -> Prop :=
 | ST_Send_Recm : forall x y  mt 
                   (m:message mt) (p1':protoExp x)
-                  (f:(message mt) -> protoExp y),
-    stepM ml _ _ _ (SendC m p1') (ReceiveC f) p1' ml
+                  (f:(message mt) -> protoExp y) l' ml,
+    stepM _ l' ml _ _ _ (SendC m p1') (ReceiveC f) p1' ml
 | ST_Rec_Sendm : forall x y mt (m:message mt) (p1':protoExp x)
-                       (f:(message mt) -> protoExp y),                     
-    stepM ml _ _ _ (ReceiveC f) (SendC m p1') (f m) (HCons m ml)
+                       (f:(message mt) -> protoExp y) l ml, 
+    stepM l ((message mt) :: l)  ml _ _ _ (ReceiveC f) (SendC m p1') (f m) (HCons m ml)
 | ST_Choice_truem : forall rt rt' st st'
                      (r:protoExp rt) (r0:protoExp rt')
-                     (s:protoExp st) (s0:protoExp st'),
+                     (s:protoExp st) (s0:protoExp st') l' ml,
     (*step _ _ _ _ (ChoiceC false r s) (OfferC r0 s0) (s, s0) -> *)
-    stepM ml _ _ _ (ChoiceC true r s) (OfferC r0 s0) r ml
+    stepM _ l' ml _ _ _ (ChoiceC true r s) (OfferC r0 s0) r ml
 | ST_Choice_falsem : forall rt rt' st st'
                      (r:protoExp rt) (r0:protoExp rt')
-                     (s:protoExp st) (s0:protoExp st'),
+                     (s:protoExp st) (s0:protoExp st') l' ml,
    (* step _ _ _ _ (ChoiceC true r s) (OfferC r0 s0) (r, r0) -> *)
-    stepM ml _ _ _ (ChoiceC false r s) (OfferC r0 s0) s ml
+    stepM _ l' ml _ _ _ (ChoiceC false r s) (OfferC r0 s0) s ml
 | ST_Offer_truem : forall rt rt' st st'
                      (r:protoExp rt) (r0:protoExp rt')
-                     (s:protoExp st) (s0:protoExp st'),
+                     (s:protoExp st) (s0:protoExp st') l' ml,
    (* step _ _ _ _ (OfferC r0 s0) (ChoiceC false r s) (s0, s) -> *)
-    stepM ml _ _ _ (OfferC r0 s0) (ChoiceC true r s) r0 ml
+    stepM _ l' ml _ _ _ (OfferC r0 s0) (ChoiceC true r s) r0 ml
 | ST_Offer_falsem : forall rt rt' st st'
                      (r:protoExp rt) (r0:protoExp rt')
-                     (s:protoExp st) (s0:protoExp st'),
+                     (s:protoExp st) (s0:protoExp st') l' ml,
    (* step _ _ _ _ (OfferC r0 s0) (ChoiceC true r s)  (r0, r) -> *)
-    stepM ml _ _ _ (OfferC r0 s0) (ChoiceC false r s) s0 ml.
+    stepM _ l' ml _ _ _ (OfferC r0 s0) (ChoiceC false r s) s0 ml.
 
-Example stepEx1m : stepM noMValues _ _ _ proto1 proto2 EpsC noMValues.
+Example stepEx1m : stepM _ _ noMValues _ _ _ proto1 proto2 EpsC noMValues.
 Proof.
   constructor.
 Qed.
 
-Example stepEx2m : stepM noMValues _ _ _ proto2 proto1 (ReturnC (basic 1)) (HCons (basic 1) noMValues).
+Example stepEx2m : stepM _ _ noMValues _ _ _ proto2 proto1 (ReturnC (basic 1)) (HCons (basic 1) noMValues).
 Proof.
   constructor.
 Qed.
 
-Inductive multim{l:list Type} (ml:mList l) : forall (t r t':protoType) (p1:protoExp t) (p2:protoExp r) (pf:Dual p1 p2),
-    (protoExp t') -> (mList (typesLearned p1 p2 pf)) -> Prop :=.
-| multi_refl : forall (t r :protoType) (x:protoExp t) (y:protoExp r),
-    multim ml _ _ _ x y x
-(*| multi_refl_u : forall t t0 (m:message t) (m0:message t0), multi _ _ _ (ReturnC m) (ReturnC m0) (ReturnC (unwrapM m)) *)
-| multi_step : forall (t t' r r2 s:protoType),
+
+Inductive multim : forall l (ml:mList l) ml' (t r t':protoType) (p1:protoExp t) (p2:protoExp r),
+    (protoExp t') -> (mList ml') (*(typesLearned p1 p2 pf))*) -> Prop :=
+| multi_reflm : forall (t r :protoType) (x:protoExp t) (y:protoExp r) l ml,
+    multim l ml _ _ _ _ x y x ml
+           
+| multi_stepm : forall (t t' r r2 s:protoType),
     forall (x:protoExp t) (x':protoExp t')
       (y:protoExp r) (y2:protoExp r2)
-      (z1:protoExp s),
-                    step _ _ _ x x' y ->
+      (z1:protoExp s) (*l' l''*) l ml ml1't (*ml' ml''*) l' mls1' ml1',
+                    stepM l l' ml _ _ _ x x' y mls1' ->
                     step _ _ _ x' x y2 -> 
-                    multi _ _ _ (*_*) y y2 z1 ->
-                    multi _ _ _ (*_*) x x' z1.
+                    (*stepM l' l'' ml' _ _ _ x' x y2 ml'' -> *)
+                    multim _ mls1' ml1't _ _ _(*_*) y y2 z1 ml1' ->
+                    multim _ ml _ _ _ _ (*_*) x x' z1 ml1'.
 
-Notation "'multie'" := (multi _ _ _).
+Notation "'multiem' ml p1 p2 p3 ml'" := (multim _ ml _ _ _ _ p1 p2 p3 ml') (right associativity, at level 200).
+
+Example multiEx1' : (*let r:= (ReturnC (basic 2)) in
+                    let l' := (HCons (basic 2) noMValues) in
+     (multiem noMValues proto5 proto6 r l'). *)
+  multim _ noMValues _ _ _ _ proto5 proto6 (ReturnC (basic 2)) (HCons (basic 2) noMValues).
+Proof.
+  unfold proto5. unfold proto6.
+  repeat econstructor.
+Qed.
+
+Check client.
+
+Inductive protocolCompositionM : Type :=
+| protoEndM : protocolCompositionM
+| protoCompM {p1t p2t:protoType} l l' :
+    (protoExp p1t) -> (protoExp p2t) ->
+    (mList l) ->
+    ((message (returnType p1t)) -> (mList l') -> protocolCompositionM) ->  
+    protocolCompositionM.
+
+(*Notation "x y <- 'doProtoM' p1 p2 ml ; p" := (protoCompM _ _ p1 p2 ml (fun x y => p))
+                                               (right associativity, at level 70, p1 ident, p2 ident). *)
+
+Definition clientM :=
+  protoCompM _ ((message Basic) :: nil) p1s proto1' noMValues (fun x y =>
+  protoEndM).
+
+(*  x y <- doProtoM p1s proto1'.
+  protoEnd.
+
+Definition clientM :=
+  x y <- doProtoM p1s proto1'.
+  let aaa := (other x) in
+  y  <- doProtoM aaa proto2' ; 
+  protoEnd.
+ *)
+
+
+Definition clientM2 :=
+  protoCompM _ ((message Basic) :: nil) p1s proto1' noMValues (fun x y =>
+  let aaa := (other x) in                                                      protoCompM _ ((message Basic) :: (message Basic) :: nil) aaa proto2' y (fun x' y' =>           
+  protoEndM)).
+
+
+Definition isEndM (p:protocolCompositionM) : bool :=
+  match p with
+  | protoEndM => true
+  | _ => false
+  end.
+
+Fixpoint eqLists lt1 lt2 (ml1:mList lt1) (ml2:mList lt2) : Prop :=
+  match ml1 with
+  | HNil =>
+    match ml2 with
+    | HNil => True
+    | _ => False
+    end
+  | HCons x h' =>
+    match ml2 with
+    | HCons x' h'' => JMeq ml1 ml2
+    | _ => False
+    end
+  end.
+
+Fixpoint superMultiStepM l l' (p:protocolCompositionM) (ml:mList l) (ml':mList l') : Prop :=
+  match p with
+  | protoEndM => False (* should never reach this case*)
+  | protoCompM _ _ p1 p2 ml f => 
+    exists m' ml'', multim _ ml _ _ _ _ p1 p2 (ReturnC m') ml'' /\
+          if(isEndM (f m' ml'')) then eqLists _ _ ml'' ml'
+          else superMultiStepM _ _ (f m' ml'') ml'' ml'
+  end.
+
+Example incMultiM : superMultiStepM _ _ clientM noMValues (HCons (basic 1) noMValues).
+Proof.
+  repeat econstructor.
+Qed.
+
+Example incTwiceMultiM : superMultiStepM _ _ clientM2 noMValues (HCons (basic 3) (HCons (basic 1) noMValues)).
+Proof.
+  repeat econstructor.
+Qed.
+
+Example incTwiceMultiMGen : exists n, superMultiStepM _ _ clientM2 noMValues (HCons (basic 3) (HCons (basic n) noMValues)).
+Proof.
+  repeat econstructor.
+Qed.
+
 
 
 
