@@ -47,6 +47,82 @@ Definition updateState{t:type} (m:message t) (sIn: State) : State :=
   | _ =>  sIn
   end.
 
+Definition ob (t:type) := list ((message t) * (list (message Key))).
+
+Definition addP (t:type) : forall mt (pf:mt = t),  ((message mt) * (list (message Key))) -> (ob t) -> (ob t).
+Proof.
+  intros. subst. exact (X :: X0 ).
+Defined.
+
+(*
+Definition addMp(xxx:type) mt (p:((message mt)*(list (message Key)))) : (ob xxx) -> (ob xxx) := fun l => (
+  match mt as t' return (mt = t') -> (ob xxx) with
+  | xxx => fun pf => (addP _ _ pf p l)
+  | _ => fun _ => l
+  end (eq_refl mt)).
+ *)
+
+Definition addMp mt (p:((message mt)*(list (message Key)))) : (ob Basic) -> (ob Basic) := fun l => (
+  match mt as t' return (mt = t') -> (ob Basic) with
+  | Basic => fun pf => (addP _ _ pf p l)
+  | _ => fun _ => l
+  end (eq_refl mt)).
+
+Definition addMpK mt (p:((message mt)*(list (message Key)))) : (ob Key) -> (ob Key) := fun l => (
+  match mt as t' return (mt = t') -> (ob Key) with
+  | Key => fun pf => (addP _ _ pf p l)
+  | _ => fun _ => l
+  end (eq_refl mt)).
+
+Fixpoint obligations'{mt:type} (m:message mt) (kl: list (message Key))
+                               (l:ob Basic) : ob Basic :=
+  match m with
+  | encrypt mt' m' k => match mt' with
+                       | Basic => let new := (m', (kl ++ [(key k)])) in
+                                 addMp mt' new l
+                       | _ => obligations' m' (kl ++ [(key k)]) l
+                       end
+  | pair _ _ m1 m2 => (obligations' m1 kl l) ++ (obligations' m2 kl l)
+  | _ => addMp _ (m, nil) l                                           
+  end.
+
+
+Definition obligations{mt:type} (m:message mt) : ob Basic :=
+  obligations' m nil nil.
+
+Fixpoint obligationsK'{mt:type} (m:message mt) (kl: list (message Key))
+                               (l:ob Key) : ob Key :=
+  match m with
+  | encrypt mt' m' k => match mt' with
+                       | Key => let new := (m', (kl ++ [(key k)])) in
+                                 addMpK mt' new l
+                       | _ => obligationsK' m' (kl ++ [(key k)]) l
+                       end
+  | pair _ _ m1 m2 => (obligationsK' m1 kl l) ++ (obligationsK' m2 kl l)
+  | _ => addMpK _ (m, nil) l                                           
+  end.
+
+
+Definition obligationsK{mt:type} (m:message mt) : ob Key :=
+  obligationsK' m nil nil.
+
+Definition encData := (basic 1).
+Definition oneEnc{mt:type} (m:message mt) := encrypt _ m (public 0).
+Definition twoEnc{mt:type} (m:message (Encrypt mt)) := encrypt _ m (public 1).
+Definition triEncrypt{mt:type} (m:message mt) := encrypt _ (twoEnc (oneEnc m)) (public 2).
+
+Eval compute in obligations (basic 0).
+
+Eval compute in triEncrypt encData.
+Eval compute in triEncrypt (basic 2).
+
+Eval compute in obligations (triEncrypt (basic 1)).
+Eval compute in obligations (pair _ _ (triEncrypt (basic 1)) (triEncrypt (basic 2))).
+Eval compute in obligations (pair _ _ (oneEnc (basic 1)) (triEncrypt (basic 2))).
+
+
+
+
 Inductive runProtoBigStep : forall (s:State) (t t':protoType) (rt:type) (p1:protoExp t) (p2:protoExp t') (m:message rt), State -> Prop :=
   
 | returnR : forall T T' (m:message T) (m':message T') s,
