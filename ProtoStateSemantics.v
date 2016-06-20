@@ -175,11 +175,11 @@ Definition hoare_triple{p1t p2t:protoType}{t:type}
      Q st'.
 
 
-Inductive step : forall s (t r t':protoType),
+Inductive step : forall (s:State) (t r t':protoType),
     (protoExp t) -> (protoExp r) -> (protoExp t') -> State -> Prop :=
 | ST_Send_Rec : forall x y  mt
                   (m:message mt) (p1':protoExp x)
-                  (f:(message mt) -> protoExp y) s,
+                  (f:(message mt) -> protoExp y) (s:State),
     step s _ _ _ (SendC m p1') (ReceiveC f) p1' s
 | ST_Rec_Send : forall x y mt (m:message mt) (p1':protoExp x)
                        (f:(message mt) -> protoExp y) s,                     
@@ -227,7 +227,11 @@ Theorem nf_ex : normal_form (ReturnC (basic 0)) (ReturnC (basic 1)).
 Proof.
  unfold normal_form. unfold not. intros. destruct H. destruct H. inversion H.
 Qed.
-                                                                          
+
+Axiom updateBoth :  forall t (m:message t) x6 x7 p1t p2t p3t (p1:protoExp p1t) (p2:protoExp p2t) (p3: protoExp p3t),
+    multi x6 _ _ _ p1 p2 p3 x7 ->
+    multi (updateState m x6) _ _ _ p1 p2 p3 (updateState m x7).
+
 Theorem normalizing{p1t p2t :protoType} :
   forall (p1:protoExp p1t) (p2:protoExp p2t),
     (Dual p1 p2) ->
@@ -242,62 +246,75 @@ Proof.
   inversion H. subst.
   dep_destruct (IHp1 p'0 (p m)).
   inversion H. apply H4.
-  destruct H0. destruct H0. destruct H0. destruct H0. destruct H0. destruct H0. destruct H0. destruct H0.
+  destruct H0. destruct H0. destruct H0. destruct H0. destruct H0. destruct H0. destruct H0. destruct H0. destruct H4. eexists. eexists. exists x2. exists x3.
+  exists x4. exists x5. exists x6. exists (updateState m x7).
 
-  destruct H4.
 
-  eexists. eexists. eexists. eexists. exists x4. exists x4. exists emptyState. eexists.
-  split. subst. apply multi_step with (y:=p1) (y2:=(p m)) (st':=x4) (st2:=x6) (st2':=(updateState m x6)).
 
-                constructor. constructor. Abort. (*apply H4.
-                split. eapply multi_step with (y:=x3) (y2:=p1) (st':=updateState m x7).*) (*constructor.*)
+  split. apply multi_step with (y:=p1) (y2:=(p m)) (st':=x4) (st2:=x6) (st2':=(updateState m x6)). constructor. constructor. assumption.
+  split. apply multi_step with (y:=(p m)) (y2:=p1) (st':=(updateState m x6)) (st2:=x4) (st2':=x4). constructor. constructor.
+  apply updateBoth. assumption. assumption.
 
- (*eapply ST_Rec_Send. constructor. constructor.
-  
+  intros. inversion H0. subst.
+  dep_destruct (H m _ p2).
+  inversion H0. assumption.
+  destruct H0.  destruct H1. destruct H1. destruct H1. destruct H1. destruct H1. destruct H1. destruct H1. destruct H1. destruct H4.
 
-  eexists. eexists. eexists.
-  
-  split. subst. eapply multi_step. constructor. constructor. apply H0.
-  split. eapply multi_step. constructor. constructor. eapply H4. apply H5.
+  eexists. eexists. exists x2. exists x3. exists x4. exists (updateState m x5). exists x6. exists x7.
 
-  intros HH. inversion HH. subst.
-  dep_destruct (H m p'0 p2).
-  inversion HH. apply H2.
-
-  destruct x. inversion HH. apply H3. destruct H2. destruct H2. destruct H2. destruct H2. destruct H3.
-  eexists. eexists. eexists. eexists. split. eapply multi_step. constructor. constructor. apply H2.
-  split.
-  eapply multi_step. constructor. constructor. apply H3. apply H4.
-
+  split. apply multi_step with (y:=(p m)) (y2:=p2) (st':=(updateState m x4)) (st2:=x6) (st2':=x6). constructor. constructor. apply updateBoth. assumption. split.
+  apply multi_step with (y:=p2) (y2:=(p m)) (st':=x6) (st2:=x4) (st2':=(updateState m x4)). constructor. constructor. assumption. assumption.
   intros. inversion H0.
   intros. inversion H0.
   intros. inversion H0.
   intros. inversion H0.
 
-  destruct b. dep_destruct (IHp1_1 r0 p2_1). apply H0. destruct x. apply H0. destruct H2. destruct H2. destruct H2. destruct H2. destruct H4.
+  destruct b. dep_destruct (IHp1_1 r0 p2_1). assumption. destruct x. assumption. destruct H2. destruct H2. destruct H2. destruct H2. destruct H2. destruct H2. destruct H2. destruct H2. destruct H4.
 
-  eexists. eexists. eexists. eexists. split. eapply multi_step. constructor. constructor. apply H2.
-  split. eapply multi_step. constructor. constructor. apply H4. apply H5.
+    destruct H3. destruct H3. destruct H3. destruct H3. destruct H3. destruct H3. destruct H3. destruct H3. destruct H6.
 
-  dep_destruct (IHp1_2 s0 p2_2). apply H1. destruct x. apply H1. destruct H2. destruct H2. destruct H2. destruct H2. destruct H4.
+  eexists. eexists. eexists. eexists.
 
-  eexists. eexists. eexists. eexists. split. eapply multi_step. constructor. constructor. apply H2.
-  split. eapply multi_step. constructor. constructor. apply H4. apply H5.
+  exists x11. exists x12. exists x13. exists x14.
+  split. apply multi_step with (y:=p1_1) (y2:=p2_1) (st':=x11) (st2:=x13) (st2':=x13). constructor. constructor. apply H3.
+  split. apply multi_step with (y:=p2_1) (y2:=p1_1) (st':=x13) (st2:=x11) (st2':=x11). constructor. constructor. apply H6. assumption.
 
-    destruct b. dep_destruct (IHp1_1 r0 p2_1). apply H0. destruct x. apply H0. destruct H2. destruct H2. destruct H2. destruct H2. destruct H4.
+  dep_destruct (IHp1_2 s0 p2_2). assumption. destruct x. assumption.
+  destruct H2. destruct H2. destruct H2. destruct H2. destruct H2. destruct H2. destruct H2. destruct H2. destruct H4.
 
-  eexists. eexists. eexists. eexists. split. eapply multi_step. constructor. constructor. apply H2.
-  split. eapply multi_step. constructor. constructor. apply H4. apply H5.
+  destruct H3. destruct H3. destruct H3. destruct H3. destruct H3. destruct H3. destruct H3. destruct H3. destruct H6.
 
-  dep_destruct (IHp1_2 s0 p2_2). apply H1. destruct x. apply H1. destruct H2. destruct H2. destruct H2. destruct H2. destruct H4.
+  eexists. eexists. eexists. eexists.
 
-  eexists. eexists. eexists. eexists. split. eapply multi_step. constructor. constructor. apply H2.
-  split. eapply multi_step. constructor. constructor. apply H4. apply H5.
+  exists x11. exists x12. exists x13. exists x14.
+  split. apply multi_step with (y:=p1_2) (y2:=p2_2) (st':=x11) (st2:=x13) (st2':=x13). constructor. constructor. apply H3.
+  split. apply multi_step with (y:=p2_2) (y2:=p1_2) (st':=x13) (st2:=x11) (st2':=x11). constructor. constructor. apply H6. assumption.
 
-  eexists. eexists. eexists. eexists. split. apply multi_refl.
-  split. apply multi_refl. cbv. intros. destruct H0. destruct H0. inversion H0.
+  destruct b. dep_destruct (IHp1_1 r0 p2_1). assumption. destruct x. assumption. destruct H2. destruct H2. destruct H2. destruct H2. destruct H2. destruct H2. destruct H2. destruct H2. destruct H4.
+
+    destruct H3. destruct H3. destruct H3. destruct H3. destruct H3. destruct H3. destruct H3. destruct H3. destruct H6.
+
+  eexists. eexists. eexists. eexists.
+
+  exists x11. exists x12. exists x13. exists x14.
+  split. apply multi_step with (y:=p1_1) (y2:=p2_1) (st':=x11) (st2:=x13) (st2':=x13). constructor. constructor. apply H3.
+  split. apply multi_step with (y:=p2_1) (y2:=p1_1) (st':=x13) (st2:=x11) (st2':=x11). constructor. constructor. apply H6. assumption.
+
+  dep_destruct (IHp1_2 s0 p2_2). assumption. destruct x. assumption.
+  destruct H2. destruct H2. destruct H2. destruct H2. destruct H2. destruct H2. destruct H2. destruct H2. destruct H4.
+
+  destruct H3. destruct H3. destruct H3. destruct H3. destruct H3. destruct H3. destruct H3. destruct H3. destruct H6.
+
+  eexists. eexists. eexists. eexists.
+
+  exists x11. exists x12. exists x13. exists x14.
+  split. apply multi_step with (y:=p1_2) (y2:=p2_2) (st':=x11) (st2:=x13) (st2':=x13). constructor. constructor. apply H3.
+  split. apply multi_step with (y:=p2_2) (y2:=p1_2) (st':=x13) (st2:=x11) (st2':=x11). constructor. constructor. apply H6. assumption.
+
+  eexists. eexists. eexists. eexists. exists emptyState. exists emptyState. exists emptyState. exists emptyState.
+  split. constructor. split. constructor.
+  unfold normal_form. intros. unfold not. intros. destruct H0. destruct H0. inversion H0.
 Qed.
-*)
 
 Definition isValue {t:protoType} (p:protoExp t) : Prop :=
   match p with
@@ -330,6 +347,22 @@ Proof.
   exists r. exists p1_1. exists emptyState. eexists. constructor.
   exists s. exists p1_2. exists emptyState. eexists. constructor.
   intros. left. simpl. trivial.
+Qed.
+
+Theorem dualInnerR{t t':protoType} {p1:protoExp t} {p2:protoExp t'} :
+    (Dual p1 p2) ->
+    exists p3t (p3:protoExp p3t) p4t (p4:protoExp p4t), forall st st' st2 st2',
+      (step st _ _ _ p1 p2 p3 st' /\
+       step st2 _ _ _ p2 p1 p4 st2')
+      -> (Dual p3 p4).
+Proof.
+  intros H. destruct p1; destruct p2; try (inversion H).
+  exists p'. exists p1. exists p'0. subst. exists (p m). intros. assumption.
+  exists p'. subst. exists (p m). exists p'0. exists p2. intros. assumption.
+  exists r. exists p1_1. exists r0. exists p2_1. intros. assumption.
+  exists r. exists p1_1. exists r0. exists p2_1. intros. assumption.
+  exists (Eps t). exists (ReturnC m).  exists (Eps t). exists (ReturnC m).
+  intros. destruct H0. dep_destruct H0.
 Qed.
   
 Theorem bigstep_multistep {t t':protoType}{T:type} {p1:protoExp t} {p2:protoExp t'} : forall (m : message T) st st', runProtoBigStep st _ _ _ p1 p2 m st' ->
@@ -443,22 +476,6 @@ Proof.
   intros. split.
   intros. apply nf_is_value in H0. assumption. assumption.
   intros. apply value_is_nf in H0. assumption.
-Qed.
-
-Theorem dualInnerR{t t':protoType} {p1:protoExp t} {p2:protoExp t'} :
-    (Dual p1 p2) ->
-    exists p3t (p3:protoExp p3t) p4t (p4:protoExp p4t),
-      (step _ _ _ p1 p2 p3 /\
-       step _ _ _ p2 p1 p4)
-      -> (Dual p3 p4).
-Proof.
-  intros H. destruct p1; destruct p2; try (inversion H).
-  exists p'. exists p1. exists p'0. subst. exists (p m). intros. assumption.
-  exists p'. subst. exists (p m). exists p'0. exists p2. intros. assumption.
-  exists r. exists p1_1. exists r0. exists p2_1. intros. assumption.
-  exists r. exists p1_1. exists r0. exists p2_1. intros. assumption.
-  exists (Eps t). exists (ReturnC m).  exists (Eps t). exists (ReturnC m).
-  intros. destruct H0. dep_destruct H0.
 Qed.
                                                                             
 (* TODO:  check a choice/offer protocol in composition(Either type might 
