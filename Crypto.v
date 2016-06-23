@@ -450,11 +450,34 @@ Ltac eq_key_helper :=
   | [ |- _ ] => right; unfold not; intros; inversion H
   end.
 
-Theorem eq_key_dec (k k':keyType) : {k=k'}+{k<>k'}.
+Theorem eq_key_type_dec (k k':keyType) : {k=k'}+{k<>k'}.
 Proof.
   intros.
   destruct k; destruct k'; eq_key_helper.
 Defined.
+
+Theorem eq_key_dec : forall (k k':message Key), {k=k'}+{k<>k'}.
+Proof.
+  intros.
+  dep_destruct k; dep_destruct k'.
+  destruct k0; destruct k1; try (right; unfold not; intros; inversion H; contradiction).
+  destruct (eq_nat_dec k0 k1).
+  left. subst. reflexivity.
+  right. unfold not. intros. inversion H. contradiction.
+  destruct (eq_nat_dec k0 k1).
+  left. subst. reflexivity.
+  right. unfold not. intros. inversion H. contradiction.
+    destruct (eq_nat_dec k0 k1).
+  left. subst. reflexivity.
+  right. unfold not. intros. inversion H. contradiction.
+  right. unfold not. intros. inversion H.
+  right. unfold not. intros. inversion H.
+  left. reflexivity.
+Defined.
+
+Print eq_key_dec.
+
+Check eq_key_dec.
   
 Hint Resolve eq_key_dec.
 
@@ -512,11 +535,11 @@ Proof.
   dependent induction m; dependent induction m'.
   (eq_not_eq (eq_nat_dec n n0)).
   right; unfold not; intros; inversion H.
-  (eq_not_eq (eq_key_dec k k0)).
+  (eq_not_eq (eq_key_type_dec k k0)).
   right; unfold not; intros; inversion H.
 
   specialize IHm with m'.
-  destruct IHm; destruct (eq_key_dec k k0);
+  destruct IHm; destruct (eq_key_type_dec k k0);
   [ left; subst; reflexivity
   | right; unfold not; intros; inversion H; contradiction
   | right; unfold not; intros; inversion H; apply inj_pair2_eq_dec in H1;
@@ -549,7 +572,8 @@ Proof.
   right; unfold not; intros; inversion H; apply inj_pair2_eq_dec in H1.
   right; unfold not; intros; inversion H; apply inj_pair2_eq_dec in H1.
   left; reflexivity.
-Defined. *)
+Defined.
+ *)
 
 (*Hint Resolve message_eq_dec. *)
 

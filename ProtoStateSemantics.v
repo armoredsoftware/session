@@ -1,18 +1,21 @@
 Require Import Crypto.
 Require Import ProtoRep.
 Require Import CpdtTactics.
-(*Require Import Eqdep_dec.*)
+Require Import Eqdep_dec.
 Require Import Program.
 Require Import SfLib.
+Require Import Coq.Program.Equality.
+
+Definition ob (t:type) := list ((message t) * (list (message Key))).
 
 Record State : Type := mkState
         {keys : list (message Key);
          basics : list (message Basic);
-         (*kOb : ob Key;
-         bOb : ob Basic *)
+         kOb : ob Key;
+         bOb : ob Basic 
         }.
 
-Definition emptyState := mkState nil nil.
+Definition emptyState := mkState nil nil nil nil.
 
 Definition Assertion := State -> Prop.
 
@@ -42,86 +45,10 @@ Definition addMBasic t (m:message t) : (list (message Basic)) -> (list (message 
 
 Definition updateState{t:type} (m:message t) (sIn: State) : State :=
   match t with
-  | Basic => mkState  sIn.(keys) (addMBasic t m sIn.(basics))
-  | Key => mkState (addMKey t m sIn.(keys)) sIn.(basics)
+  | Basic => mkState  sIn.(keys) (addMBasic t m sIn.(basics)) sIn.(kOb) sIn.(bOb)
+  | Key => mkState (addMKey t m sIn.(keys)) sIn.(basics) sIn.(kOb) sIn.(bOb)
   | _ =>  sIn
   end.
-
-Definition ob (t:type) := list ((message t) * (list (message Key))).
-
-Definition addP (t:type) : forall mt (pf:mt = t),  ((message mt) * (list (message Key))) -> (ob t) -> (ob t).
-Proof.
-  intros. subst. exact (X :: X0 ).
-Defined.
-
-(*
-Definition addMp(xxx:type) mt (p:((message mt)*(list (message Key)))) : (ob xxx) -> (ob xxx) := fun l => (
-  match mt as t' return (mt = t') -> (ob xxx) with
-  | xxx => fun pf => (addP _ _ pf p l)
-  | _ => fun _ => l
-  end (eq_refl mt)).
- *)
-
-Definition addMp mt (p:((message mt)*(list (message Key)))) : (ob Basic) -> (ob Basic) := fun l => (
-  match mt as t' return (mt = t') -> (ob Basic) with
-  | Basic => fun pf => (addP _ _ pf p l)
-  | _ => fun _ => l
-  end (eq_refl mt)).
-
-Definition addMpK mt (p:((message mt)*(list (message Key)))) : (ob Key) -> (ob Key) := fun l => (
-  match mt as t' return (mt = t') -> (ob Key) with
-  | Key => fun pf => (addP _ _ pf p l)
-  | _ => fun _ => l
-  end (eq_refl mt)).
-
-Fixpoint obligations'{mt:type} (m:message mt) (kl: list (message Key))
-                               (l:ob Basic) : ob Basic :=
-  match m with
-  | encrypt mt' m' k => match mt' with
-                       | Basic => let new := (m', (kl ++ [(key k)])) in
-                                 addMp mt' new l
-                       | _ => obligations' m' (kl ++ [(key k)]) l
-                       end
-  | pair _ _ m1 m2 => (obligations' m1 kl l) ++ (obligations' m2 kl l)
-  | _ => addMp _ (m, nil) l                                           
-  end.
-
-
-Definition obligations{mt:type} (m:message mt) : ob Basic :=
-  obligations' m nil nil.
-
-Fixpoint obligationsK'{mt:type} (m:message mt) (kl: list (message Key))
-                               (l:ob Key) : ob Key :=
-  match m with
-  | encrypt mt' m' k => match mt' with
-                       | Key => let new := (m', (kl ++ [(key k)])) in
-                                 addMpK mt' new l
-                       | _ => obligationsK' m' (kl ++ [(key k)]) l
-                       end
-  | pair _ _ m1 m2 => (obligationsK' m1 kl l) ++ (obligationsK' m2 kl l)
-  | _ => addMpK _ (m, nil) l                                           
-  end.
-
-
-Definition obligationsK{mt:type} (m:message mt) : ob Key :=
-  obligationsK' m nil nil.
-
-Definition encData := (basic 1).
-Definition oneEnc{mt:type} (m:message mt) := encrypt _ m (public 0).
-Definition twoEnc{mt:type} (m:message (Encrypt mt)) := encrypt _ m (public 1).
-Definition triEncrypt{mt:type} (m:message mt) := encrypt _ (twoEnc (oneEnc m)) (public 2).
-
-Eval compute in obligations (basic 0).
-
-Eval compute in triEncrypt encData.
-Eval compute in triEncrypt (basic 2).
-
-Eval compute in obligations (triEncrypt (basic 1)).
-Eval compute in obligations (pair _ _ (triEncrypt (basic 1)) (triEncrypt (basic 2))).
-Eval compute in obligations (pair _ _ (oneEnc (basic 1)) (triEncrypt (basic 2))).
-
-
-
 
 Inductive runProtoBigStep : forall (s:State) (t t':protoType) (rt:type) (p1:protoExp t) (p2:protoExp t') (m:message rt), State -> Prop :=
   
@@ -140,7 +67,7 @@ Inductive runProtoBigStep : forall (s:State) (t t':protoType) (rt:type) (p1:prot
             (f: ((message X) -> (protoExp p2t)))
             (p1':protoExp p1t) s s',
             runProtoBigStep s _ _ _ (f m) p1' m' s' ->
-            runProtoBigStep s _ _ _ (ReceiveC f) (SendC m p1') m' (updateState m' s)
+            runProtoBigStep s _ _ _ (ReceiveC f) (SendC m p1') m' (updateState m s')
                             
 | choiceRt : forall rt rt' st st' mt (m:message mt)
                (r:protoExp rt) (r0:protoExp rt')
@@ -165,15 +92,6 @@ Inductive runProtoBigStep : forall (s:State) (t t':protoType) (rt:type) (p1:prot
               (s:protoExp st) (s0:protoExp st') stt stt',
     runProtoBigStep stt _ _ _ s s0 m' stt' ->
     runProtoBigStep stt _ _ _ (OfferC r s) (ChoiceC false r0 s0) m' stt'.
-
-
-Definition hoare_triple{p1t p2t:protoType}{t:type}
-           (P:Assertion) (p1:protoExp p1t) (p2:protoExp p2t) (Q:Assertion) : Prop :=
-   forall st st' (m:message t),
-     runProtoBigStep st _ _ _ p1 p2 m st' ->
-     P st ->
-     Q st'.
-
 
 Inductive step : forall (s:State) (t r t':protoType),
     (protoExp t) -> (protoExp r) -> (protoExp t') -> State -> Prop :=
@@ -221,7 +139,7 @@ Notation "'multie' st st'" := (multi st _ _ _ st')
 
 Definition normal_form {p1t p2t:protoType}
            (p1:protoExp p1t)(p2:protoExp p2t) : Prop :=
-  forall st st', ~ exists  t' (x:protoExp t'),  step st _ _ _ p1 p2 x st'.
+  forall st st',  ~ exists  t' (x:protoExp t'),  step st _ _ _ p1 p2 x st'.
 
 Theorem nf_ex : normal_form (ReturnC (basic 0)) (ReturnC (basic 1)).
 Proof.
@@ -231,6 +149,10 @@ Qed.
 Axiom updateBoth :  forall t (m:message t) x6 x7 p1t p2t p3t (p1:protoExp p1t) (p2:protoExp p2t) (p3: protoExp p3t),
     multi x6 _ _ _ p1 p2 p3 x7 ->
     multi (updateState m x6) _ _ _ p1 p2 p3 (updateState m x7).
+
+Axiom updateBothR :  forall t r (m:message t) (m':message r) x6 x7 p1t p2t (p1:protoExp p1t) (p2:protoExp p2t),
+    runProtoBigStep x6 _ _ _ p1 p2 m' x7 -> 
+    runProtoBigStep (updateState m x6) _ _ _ p1 p2 m' (updateState m x7).
 
 Theorem normalizing{p1t p2t :protoType} :
   forall (p1:protoExp p1t) (p2:protoExp p2t),
@@ -372,30 +294,325 @@ Proof.
 
   (* -> *)
   generalize dependent t'. dependent induction p1; destruct p2; try (intros H; inversion H; contradiction).
-  intros H. dep_destruct H. eapply multi_step. constructor. constructor.
+  intros H. dep_destruct H. apply multi_step with (y:=p1) (y2:=p m) (st':=s) (st2:=s) (st2':=(updateState m s)). constructor. constructor.
   apply IHp1. assumption.
 
-  intros. dep_destruct H0. eapply multi_step. apply ST_Rec_Send. apply ST_Send_Rec. apply H. (*constructor.*) Abort.
+  intros H0. dep_destruct H0. apply multi_step with (y:= p m0) (y2:=p2) (st':=updateState m0 s) (st2:=s) (st2':=s). constructor. constructor.
+  apply H. apply updateBothR. assumption.
+  intros HH. inversion HH.
+  intros HH. inversion HH.
+  intros HH. inversion HH.
+  intros HH. inversion HH.
 
-  (*apply H
-
-  specialize multi_step. intros H0. apply H0 with (r:=p') (y:=p1) (y2:=p m) (st':=s') (st2:=s) (st2':=s). constructor. constructor. apply IHp1. assumption.
-  intros H0. dep_destruct H0. specialize multi_step. intros H1. apply H1 with (r:=p') (y:=p m0) (y2:=p2). constructor. constructor. apply H. assumption.
-
-  intros HH. inversion HH.
-  intros HH. inversion HH.
-  intros HH. inversion HH.
-  intros HH. inversion HH.
-  intros H. dep_destruct H. apply multi_step with (r:=r) (y:=p1_1) (y2:=p2_1). constructor. constructor. apply IHp1_1. assumption.
-  apply multi_step with (y:=p1_2) (y2:=p2_2). constructor. constructor. apply IHp1_2. assumption.
+  intros H. dep_destruct H. apply multi_step with (y:=p1_1) (y2:=p2_1) (st':=stt) (st2:=stt) (st2':=stt). constructor. constructor. apply IHp1_1. assumption.
+  apply multi_step with (y:=p1_2) (y2:=p2_2) (st':=stt) (st2:=stt) (st2':=stt). constructor. constructor. apply IHp1_2. assumption.
   
-  intros H. dep_destruct H. apply multi_step with (y:=p1_1) (y2:=p2_1). constructor. constructor. apply IHp1_1. assumption. (*apply IHp1_1.*)
-  apply multi_step with (y:=p1_2) (y2:=p2_2). constructor. constructor. apply IHp1_2. assumption.
+  intros H. dep_destruct H. apply multi_step with (y:=p1_1) (y2:=p2_1) (st':=stt) (st2:=stt) (st2':=stt). constructor. constructor. apply IHp1_1. assumption. (*apply IHp1_1.*)
+  apply multi_step with (y:=p1_2) (y2:=p2_2) (st':=stt) (st2:=stt) (st2':=stt). constructor. constructor. apply IHp1_2. assumption.
 
   intros H. dep_destruct H. constructor.
 Qed.
+
+Lemma value_is_nf {t t':protoType} (p1:protoExp t) (p2:protoExp t') :
+  (isValue p1) /\ (isValue p2) -> normal_form p1 p2.
+Proof.
+  intros.
+  destruct p1; destruct p2; try (solve by inversion 2).
+  unfold normal_form. unfold not. intros. destruct H0. destruct H0. inversion H0.
+Qed.
+
+Lemma nf_is_value {t t':protoType} (p1:protoExp t) (p2:protoExp t') : (Dual p1 p2) -> 
+  normal_form p1 p2 -> (isValue p1) /\ (isValue p2).
+Proof.
+  unfold normal_form.
+  intros D H.
+  destruct p1; destruct p2; try (inversion D).
+  destruct H with (st:=emptyState) (st':=emptyState). eexists. eexists. subst. constructor.
+  destruct H with (st:=emptyState) (st':=updateState m emptyState). exists p'. subst. exists (p m). constructor.
+  destruct b.
+  destruct H with (st:=emptyState) (st':=emptyState). exists r. exists p1_1. constructor.
+  destruct H with (st:=emptyState) (st':=emptyState). exists s. exists p1_2. constructor.
+  destruct b.
+  destruct H with (st:=emptyState) (st':=emptyState). exists r. exists p1_1. constructor.
+  destruct H with (st:=emptyState) (st':=emptyState). exists s. exists p1_2. constructor.
+  
+  simpl. split; trivial.
+Qed.
+
+Corollary nf_same_as_value {t t':protoType} (p1:protoExp t) (p2:protoExp t')
+  : (Dual p1 p2) -> normal_form p1 p2 <-> (isValue p1) /\ (isValue p2).
+Proof.
+  intros. split.
+  intros. apply nf_is_value in H0. assumption. assumption.
+  intros. apply value_is_nf in H0. assumption.
+Qed.
+
+Definition messageEq {t t':type} (m:message t) (m':message t') : Prop.
+Proof.
+  destruct (eq_type_dec t t').
+  subst. exact (m = m').
+  exact False.
+Defined.
+
+
+Definition addP (t:type) : forall mt (pf:mt = t),  ((message mt) * (list (message Key))) -> (ob t) -> (ob t).
+Proof.
+  intros. subst. exact (X :: X0 ).
+Defined.
+
+(*
+Definition addMp(xxx:type) mt (p:((message mt)*(list (message Key)))) : (ob xxx) -> (ob xxx) := fun l => (
+  match mt as t' return (mt = t') -> (ob xxx) with
+  | xxx => fun pf => (addP _ _ pf p l)
+  | _ => fun _ => l
+  end (eq_refl mt)).
+ *)
+
+Definition addMp mt (p:((message mt)*(list (message Key)))) : (ob Basic) -> (ob Basic) := fun l => (
+  match mt as t' return (mt = t') -> (ob Basic) with
+  | Basic => fun pf => (addP _ _ pf p l)
+  | _ => fun _ => l
+  end (eq_refl mt)).
+
+Definition addMpK mt (p:((message mt)*(list (message Key)))) : (ob Key) -> (ob Key) := fun l => (
+  match mt as t' return (mt = t') -> (ob Key) with
+  | Key => fun pf => (addP _ _ pf p l)
+  | _ => fun _ => l
+  end (eq_refl mt)).
+
+Fixpoint obligations'{mt:type} (m:message mt) (kl: list (message Key))
+                               (l:ob Basic) : ob Basic :=
+  match m with
+  | encrypt mt' m' k => match mt' with
+                       | Basic => let new := (m', (kl ++ [(key k)])) in
+                                 addMp mt' new l
+                       | _ => obligations' m' (kl ++ [(key k)]) l
+                       end
+  | pair _ _ m1 m2 => (obligations' m1 kl l) ++ (obligations' m2 kl l)
+  | _ => addMp _ (m, nil) l                                           
+  end.
+
+
+Definition obligations{mt:type} (m:message mt) : ob Basic :=
+  obligations' m nil nil.
+
+Fixpoint obligationsK'{mt:type} (m:message mt) (kl: list (message Key))
+                               (l:ob Key) : ob Key :=
+  match m with
+  | encrypt mt' m' k => match mt' with
+                       | Key => let new := (m', (kl ++ [(key k)])) in
+                                 addMpK _ new l
+                       | _ => obligationsK' m' (kl ++ [(key k)]) l
+                       end
+  | pair _ _ m1 m2 => (obligationsK' m1 kl l) ++ (obligationsK' m2 kl l)
+  | _ => addMpK _ (m, nil) l                                           
+  end.
+
+
+Definition obligationsK{mt:type} (m:message mt) : ob Key :=
+  obligationsK' m nil nil.
+
+Definition encData := (basic 1).
+Definition oneEnc{mt:type} (m:message mt) := encrypt _ m (public 0).
+Definition twoEnc{mt:type} (m:message (Encrypt mt)) := encrypt _ m (public 1).
+Definition triEncrypt{mt:type} (m:message mt) := encrypt _ (twoEnc (oneEnc m)) (public 2).
+
+Eval compute in obligations (basic 0).
+
+Eval compute in triEncrypt encData.
+Eval compute in triEncrypt (basic 2).
+
+Eval compute in obligations (triEncrypt (basic 1)).
+Eval compute in obligations (pair _ _ (triEncrypt (basic 1)) (triEncrypt (basic 2))).
+
+Check eq_key_dec.
+
+Fixpoint m_eq {t t':type} (m:message t) (m':message t') : bool :=
+    match m with
+    | basic n => match m' with
+                | basic n' => if (beq_nat n n') then true
+                             else false
+                | _ => false
+                end
+    | key kt => match m' with
+               | key kt' => match kt with
+                           | symmetric s0 => match kt' with
+                                            | symmetric s0' => beq_nat s0 s0'
+                                            | _ => false
+                                            end           
+                           | private p0 => match kt' with
+                                          | private p0' => beq_nat p0 p0'
+                                          | _ => false
+                                          end             
+                           | public pu0 => match kt' with
+                                          | public pu0' => beq_nat pu0 pu0'
+                                          | _ => false
+                                          end
+                           end                             
+               | _ => false
+               end
+    | encrypt _ em _ => match m' with
+                       | encrypt _ em' _ => m_eq em em'
+                       | _ => false
+                       end
+    | hash _ hm => match m' with
+                  | hash _ hm' => m_eq hm hm'
+                  | _ => false
+                  end
+    | pair _ _ m1 m2 => match m' with
+                       | pair _ _ m1' m2' => andb (m_eq m1 m1') (m_eq m2 m2')
+                       | _ => false
+                       end
+    | leither _ _ em => match m' with
+                       | leither _ _ em' => m_eq em em'
+                       | _ => false
+                       end
+    | reither _ _ em => match m' with
+                       | reither _ _ em' => m_eq em em'
+                       | _ => false
+                       end
+    | bad _ => false
+    end.
+
+Eval compute in m_eq (key (public 0)) (key (public 1)).
+Eval compute in m_eq (key (public 0)) (basic 0).
+
+                        
+
+Fixpoint my_remove {t:type} (m:message t) (l:list (message t)) : list (message t) :=
+  match l with
+  | [] => l
+  | h :: t => if (m_eq m h) then my_remove m t
+             else h :: (my_remove m t)
+  end.
+
+Fixpoint my_in {t:type} (m:message t) (l:list (message t)) : bool :=
+  match l with
+  | [] => false
+  | h :: t => if (m_eq m h) then true
+             else my_in m t
+  end.
+    
+
+Definition kList := [(key (public 0)); (key (private 0))].
+Eval compute in my_remove (key (private 0)) kList.
+
+Definition empty {t:type} (l:list (message t)) : bool :=
+  beq_nat 0 (length l).
+
+Fixpoint ob_remove (m:message Key) (obIn:ob Key) : ob Key :=
+  match obIn with
+  | [] => obIn
+  | h :: t => if (m_eq m (fst h)) then ob_remove m t
+             else h :: (ob_remove m t)
+  end.
+
+(*Definition ob (t:type) := list ((message t) * (list (message Key))).
+
+Record State : Type := mkState
+        {keys : list (message Key);
+         basics : list (message Basic);
+         kOb : ob Key;
+         bOb : ob Basic 
+        }.
+ *)
+
+Fixpoint updateObs (k:message Key) (obK:ob Key) : (ob Key) :=
+  match obK with
+  | [] => obK
+  | h :: t => let obs := (snd h) in
+             if (my_in k obs) then 
+               let newObs := my_remove k obs in
+               let newH := ((fst h), newObs) in
+               newH :: (updateObs k t)
+             else h :: (updateObs k t)
+  end.
+
+Fixpoint getReleasedKeys' (obK:ob Key) (l:list (message Key)) : list (message Key) :=
+  match obK with
+  | [] => l
+  | h :: t => let obs := (snd h) in
+             if (empty obs) then
+               getReleasedKeys' t (l++[(fst h)])
+             else
+               getReleasedKeys' t l
+  end.
+
+Definition getReleasedKeys (obK:ob Key) : list (message Key) :=
+  getReleasedKeys' obK [].
+
+Fixpoint cleanOb (releasedKeys:list (message Key)) (obK:ob Key) : ob Key :=
+  match releasedKeys with
+  | [] => obK
+  | h :: t => cleanOb t (ob_remove h obK)
+  end.
+    
+Definition normObk (k:message Key) (obK:ob Key) :
+  ((ob Key)*(list (message Key))) :=
+  let newObk := updateObs k obK in
+  let releasedKeys := getReleasedKeys newObk in
+  let cleanedNewObk := cleanOb releasedKeys newObk in
+  (cleanedNewObk, releasedKeys).
+
+Fixpoint normState' (lIn:list (message Key)) (obk:ob Key)
+         (newl:list (message Key)) :
+  ((list (message Key)) * (ob Key)) :=
+  match lIn with
+  | [] => (newl, obk)
+  | h :: t => let once := normObk h obk in
+             let newOb := fst once in
+             let newRel := snd once in
+             normState' t newOb (newl ++ newRel)
+  end.
+
+Definition normState (lIn:list (message Key)) (obk:ob Key) :
+  ((list (message Key)) * (ob Key)) :=
+  normState' lIn obk [].
+    
+Fixpoint normStateMulti' (lIn:list (message Key)) (obk:ob Key) (n:nat) :
+  ((list (message Key)) * (ob Key)) :=
+  match n with
+  | O => (lIn, obk)
+  | S n' => 
+    let onePass := normState lIn obk in
+    normStateMulti' (lIn ++ (fst onePass)) (snd onePass) n'
+  end.
+
+Definition normStateMulti (lIn:list (message Key)) (obk:ob Key) :
+  ((list (message Key)) * (ob Key)) :=
+  normStateMulti' lIn obk 1000.
+
+Definition obEx := obligations (pair _ _ (oneEnc (basic 1)) (triEncrypt (basic 2))).
+Eval compute in obEx.
+
+Definition obExK := obligationsK (pair _ _ (oneEnc (key (public 33))) (triEncrypt (key (public 22)))).
+Eval compute in obExK.
+
+Eval compute in normState [(key (public 0))] obExK.
+Eval compute in normStateMulti [(key (public 0)); (key (public 2))] obExK.
+
+
+
+
+
+(*
+Fixpoint biggerStep{t:type} (p:protocolComposition) (m:message t) : Prop :=
+  match p with
+  | protoEnd => False (* should never reach this case*)
+  | protoComp p1 p2 f  =>
+    exists m', runProtoBigStep _ _ _ p1 p2 m' /\
+          if(isEnd (f m')) then messageEq m' m
+          else biggerStep (f m') m
+  end.
+
 *)
 
+
+
+
+
+
+(*
 Definition unWrapRet{mt:type} (p:protoExp (Eps mt)) : message mt.
 Proof.
   inversion p.
@@ -445,77 +662,4 @@ Theorem multistep_bigstep {p1t p2t:protoType}{mt mt':type} {p1:protoExp p1t} {p2
       intros. dep_destruct H. constructor. dep_destruct s0.
 Qed.
 
-Lemma value_is_nf {t t':protoType} (p1:protoExp t) (p2:protoExp t') :
-  (isValue p1) /\ (isValue p2) -> normal_form p1 p2.
-Proof.
-  intros.
-  destruct p1; destruct p2; try (solve by inversion 2).
-  unfold normal_form. unfold not. intros. destruct H0. destruct H0. inversion H0.
-Qed.
-
-Lemma nf_is_value {t t':protoType} (p1:protoExp t) (p2:protoExp t') : (Dual p1 p2) -> 
-  normal_form p1 p2 -> (isValue p1) /\ (isValue p2).
-Proof.
-  intros D H.
-  destruct p1; destruct p2; try (inversion D).
-  destruct H. eexists. eexists. subst. constructor.
-  destruct H. exists p'. subst. exists (p m). constructor.
-  destruct b.
-  destruct H. exists r. exists p1_1. constructor.
-  destruct H. exists s. exists p1_2. constructor.
-  destruct b.
-  destruct H. exists r. exists p1_1. constructor.
-  destruct H. exists s. exists p1_2. constructor.
-  
-  simpl. split; trivial.
-Qed.
-
-Corollary nf_same_as_value {t t':protoType} (p1:protoExp t) (p2:protoExp t')
-  : (Dual p1 p2) -> normal_form p1 p2 <-> (isValue p1) /\ (isValue p2).
-Proof.
-  intros. split.
-  intros. apply nf_is_value in H0. assumption. assumption.
-  intros. apply value_is_nf in H0. assumption.
-Qed.
-                                                                            
-(* TODO:  check a choice/offer protocol in composition(Either type might 
-          mess things up.  If so, do we really need returnType here??  Just put type as implicit param here *)
-Inductive protocolComposition : Type :=
-| protoEnd : protocolComposition
-| protoComp {p1t p2t:protoType}{t:type} : (protoExp p1t) -> (protoExp p2t) -> 
-    ((message t(*(returnType p1t)*)) -> protocolComposition) ->  
-    protocolComposition.
-
-Notation "x <- 'doProto' p1 p2 ; p" := (protoComp p1 p2 (fun x => p))
-                                         (right associativity, at level 70, p1 ident, p2 ident).
-
-Definition messageEq {t t':type} (m:message t) (m':message t') : Prop.
-Proof.
-  destruct (eq_type_dec t t').
-  subst. exact (m = m').
-  exact False.
-Defined.
-
-Definition isEnd (p:protocolComposition) : bool :=
-  match p with
-  | protoEnd => true
-  | _ => false
-  end.
-
-Fixpoint biggerStep{t:type} (p:protocolComposition) (m:message t) : Prop :=
-  match p with
-  | protoEnd => False (* should never reach this case*)
-  | protoComp p1 p2 f  =>
-    exists m', runProtoBigStep _ _ _ p1 p2 m' /\
-          if(isEnd (f m')) then messageEq m' m
-          else biggerStep (f m') m
-  end.
-
-Fixpoint superMultiStep{t:type} (p:protocolComposition) (m:message t) : Prop :=
-  match p with
-  | protoEnd => False (* should never reach this case*)
-  | protoComp p1 p2 f  =>
-    exists m', multi _ _ _ p1 p2 (ReturnC m') /\
-          if(isEnd (f m')) then messageEq m' m
-          else superMultiStep (f m') m
-  end.
+*)
