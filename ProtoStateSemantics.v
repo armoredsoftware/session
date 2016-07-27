@@ -93,6 +93,33 @@ Inductive runProtoBigStep : forall (s:State) (t t':protoType) (rt:type) (p1:prot
     runProtoBigStep stt _ _ _ s s0 m' stt' ->
     runProtoBigStep stt _ _ _ (OfferC r s) (ChoiceC false r0 s0) m' stt'.
 
+(*Inductive step : forall (stIn:State) (t r t':protoType),
+    (protoExp t) -> (protoExp r) -> (protoExp t') -> State -> Prop :=
+| ST_Send_Rec : forall p1t p2t  mt
+                  (m:message mt) (p1:protoExp p1t)
+                  (f:(message mt) -> protoExp p2t) (st:State),
+    step st _ _ _ (SendC m p1) (ReceiveC f) p1 st
+| ST_Rec_Send : forall p1t p2t mt (m:message mt) (p1:protoExp p1t)
+                       (f:(message mt) -> protoExp p2t) (st:State),       
+    step st _ _ _ (ReceiveC f) (SendC m p1) (f m) (updateState m st)
+| ST_Choice_true : forall pt1 pt1' pt2 pt2'
+                     (r:protoExp pt1) (r0:protoExp pt1')
+                     (s:protoExp pt2) (s0:protoExp pt2') (st:State),
+    step st _ _ _ (ChoiceC true r s) (OfferC r0 s0) r st
+| ST_Choice_false : forall pt1 pt1' pt2 pt2'
+                     (r:protoExp pt1) (r0:protoExp pt1')
+                     (s:protoExp pt2) (s0:protoExp pt2') (st:State),
+    step st _ _ _ (ChoiceC false r s) (OfferC r0 s0) s st
+| ST_Offer_true : forall pt1 pt1' pt2 pt2'
+                     (r:protoExp pt1) (r0:protoExp pt1')
+                     (s:protoExp pt2) (s0:protoExp pt2') (st:State),
+    step st _ _ _ (OfferC r0 s0) (ChoiceC true r s) r0 st
+| ST_Offer_false : forall pt1 pt1' pt2 pt2'
+                     (r:protoExp pt1) (r0:protoExp pt1')                     (s:protoExp pt2) (s0:protoExp pt2') (st:State),
+    step st _ _ _ (OfferC r0 s0) (ChoiceC false r s) s0 st.
+
+Notation "'stepe' st st'" := (step st _ _ _ st') (at level 50) *)
+
 Inductive step : forall (s:State) (t r t':protoType),
     (protoExp t) -> (protoExp r) -> (protoExp t') -> State -> Prop :=
 | ST_Send_Rec : forall x y  mt
@@ -115,8 +142,7 @@ Inductive step : forall (s:State) (t r t':protoType),
                      (s:protoExp st) (s0:protoExp st') stt,
     step stt _ _ _ (OfferC r0 s0) (ChoiceC true r s) r0 stt
 | ST_Offer_false : forall rt rt' st st'
-                     (r:protoExp rt) (r0:protoExp rt')
-                     (s:protoExp st) (s0:protoExp st') stt,
+                     (r:protoExp rt) (r0:protoExp rt')                     (s:protoExp st) (s0:protoExp st') stt,
     step stt _ _ _ (OfferC r0 s0) (ChoiceC false r s) s0 stt.
 
 Notation "'stepe' st st'" := (step st _ _ _ st') (at level 50).
@@ -154,24 +180,22 @@ Axiom updateBothR :  forall t r (m:message t) (m':message r) x6 x7 p1t p2t (p1:p
     runProtoBigStep x6 _ _ _ p1 p2 m' x7 -> 
     runProtoBigStep (updateState m x6) _ _ _ p1 p2 m' (updateState m x7).
 
-Theorem normalizing{p1t p2t :protoType} :
-  forall (p1:protoExp p1t) (p2:protoExp p2t),
-    (Dual p1 p2) ->
+Theorem normalization {p1t p2t :protoType} :
+    forall (p1:protoExp p1t) (p2:protoExp p2t),
+      (Dual p1 p2) ->
     exists p3t p4t (p3:protoExp p3t) (p4:protoExp p4t) st st' st2 st2',
-    (multi st _ _ _ p1 p2 p3 st') /\ (multi st2 _ _ _ p2 p1 p4 st2') /\ normal_form p3 p4.
+      (multi st _ _ _ p1 p2 p3 st') /\ (multi st2 _ _ _ p2 p1 p4 st2')
+      /\ normal_form p3 p4.
 Proof.
-  intros. 
-
-  generalize dependent p2t.
-  dependent induction p1; destruct p2;
+  intros.
+  generalize dependent p2. generalize dependent p2t.
+  induction p1; destruct p2;
   try (intros H; inversion H).
   inversion H. subst.
   dep_destruct (IHp1 p'0 (p m)).
-  inversion H. apply H4.
+  inversion H. assumption.
   destruct H0. destruct H0. destruct H0. destruct H0. destruct H0. destruct H0. destruct H0. destruct H0. destruct H4. eexists. eexists. exists x2. exists x3.
   exists x4. exists x5. exists x6. exists (updateState m x7).
-
-
 
   split. apply multi_step with (y:=p1) (y2:=(p m)) (st':=x4) (st2:=x6) (st2':=(updateState m x6)). constructor. constructor. assumption.
   split. apply multi_step with (y:=(p m)) (y2:=p1) (st':=(updateState m x6)) (st2:=x4) (st2':=x4). constructor. constructor.
@@ -184,8 +208,9 @@ Proof.
 
   eexists. eexists. exists x2. exists x3. exists x4. exists (updateState m x5). exists x6. exists x7.
 
-  split. apply multi_step with (y:=(p m)) (y2:=p2) (st':=(updateState m x4)) (st2:=x6) (st2':=x6). constructor. constructor. apply updateBoth. assumption. split.
-  apply multi_step with (y:=p2) (y2:=(p m)) (st':=x6) (st2:=x4) (st2':=(updateState m x4)). constructor. constructor. assumption. assumption.
+  split. apply multi_step with (y:=(p m)) (y2:=p2) (st':=(updateState m x4)) (st2:=x6) (st2':=x6). constructor. constructor.
+  apply updateBoth. assumption.
+  split. apply multi_step with (y:=p2) (y2:=(p m)) (st':=x6) (st2:=x4) (st2':=(updateState m x4)). constructor. constructor. assumption. assumption.
   intros. inversion H0.
   intros. inversion H0.
   intros. inversion H0.
@@ -249,42 +274,55 @@ Proof.
   simpl. trivial.
 Qed.
 
-Theorem strong_progress {t t':protoType} :
-  forall (p1:protoExp t) (p2:protoExp t'),
-    (Dual p1 p2) ->
-    isValue p1 \/ (exists t'' (p3:protoExp t'') st st', step st _ _ _ p1 p2 p3 st').
-Proof.
-  intros. generalize dependent t'. induction p1; destruct p2; try (intros H; inversion H; contradiction).
-  intros. inversion H. subst. right. exists p'. exists p1. exists emptyState. eexists. constructor.
-
-  intros. inversion H0. subst. right. exists p'. exists (p m). exists emptyState. eexists. constructor.
-  intros HH. inversion HH.
-  intros HH. inversion HH.
-  intros HH. inversion HH.
-  intros HH. inversion HH.
-  intros. destruct b; right.
-  exists r. exists p1_1. exists emptyState. eexists. constructor.
-  exists s. exists p1_2. exists emptyState. eexists. constructor.
-  intros. destruct b; right.
-  exists r. exists p1_1. exists emptyState. eexists. constructor.
-  exists s. exists p1_2. exists emptyState. eexists. constructor.
-  intros. left. simpl. trivial.
-Qed.
-
+(*
 Theorem dualInnerR{t t':protoType} {p1:protoExp t} {p2:protoExp t'} :
     (Dual p1 p2) ->
     exists p3t (p3:protoExp p3t) p4t (p4:protoExp p4t), forall st st' st2 st2',
       (step st _ _ _ p1 p2 p3 st' /\
        step st2 _ _ _ p2 p1 p4 st2')
       -> (Dual p3 p4).
+         
+Theorem normalizing{p1t p2t :protoType} :
+  forall (p1:protoExp p1t) (p2:protoExp p2t),
+    (Dual p1 p2) ->
+    exists p3t p4t (p3:protoExp p3t) (p4:protoExp p4t) st st' st2 st2',
+    (multi st _ _ _ p1 p2 p3 st') /\ (multi st2 _ _ _ p2 p1 p4 st2') /\ normal_form p3 p4.
+*)
+Theorem progress {t t':protoType} :
+    forall (p1:protoExp t) (p2:protoExp t'), 
+    (Dual p1 p2) ->
+    isValue p1 \/ (exists t''(p3:protoExp t'') st st', step st _ _ _ p1 p2 p3 st').
 Proof.
-  intros H. destruct p1; destruct p2; try (inversion H).
-  exists p'. exists p1. exists p'0. subst. exists (p m). intros. assumption.
-  exists p'. subst. exists (p m). exists p'0. exists p2. intros. assumption.
-  exists r. exists p1_1. exists r0. exists p2_1. intros. assumption.
-  exists r. exists p1_1. exists r0. exists p2_1. intros. assumption.
-  exists (Eps t). exists (ReturnC m).  exists (Eps t). exists (ReturnC m).
-  intros. destruct H0. dep_destruct H0.
+  intros p1 p2 dualProof. destruct p1; destruct p2; inversion dualProof.
+  (* Case:  p1 = SendC, p2 = ReceiveC *)
+  right. subst.
+    exists p'. exists p1. exists emptyState. eexists. constructor.
+  (* Case:  p1 = ReceiveC, p2 = SendC *)
+  right. subst.
+    exists p'. exists (p m). exists emptyState. eexists. constructor.
+  (* Case:  p1 = ChoiceC, p2 = OfferC *)
+  right. destruct b.
+    exists r. exists p1_1. exists emptyState. eexists. constructor.
+    exists s. exists p1_2. exists emptyState. eexists. constructor.
+  (* Case:  p1 = OfferC, p2 = ChoiceC *)
+  right. destruct b.
+    exists r. exists p1_1. exists emptyState. eexists. constructor.
+    exists s. exists p1_2. exists emptyState. eexists. constructor.
+  (* Case:  p1 = ReturnC, p2 = ReturnC *)
+  left. simpl. trivial.
+Qed.
+
+Theorem preservation {t t' p3t p4t : protoType} :
+    forall (p1:protoExp t) (p2:protoExp t'), 
+    (Dual p1 p2) -> 
+    forall (p3:protoExp p3t) (p4:protoExp p4t) st st' st2 st2',
+      (step st _ _ _ p1 p2 p3 st' /\
+       step st2 _ _ _ p2 p1 p4 st2')
+      -> (Dual p3 p4).
+Proof.
+  intros p1 p2 dualProof. destruct p1; destruct p2; inversion dualProof;
+  try (intros; destruct H1; dep_destruct H1; dep_destruct H2; assumption).
+  intros. destruct H. inversion H.
 Qed.
   
 Theorem bigstep_multistep {t t':protoType}{T:type} {p1:protoExp t} {p2:protoExp t'} : forall (m : message T) st st', runProtoBigStep st _ _ _ p1 p2 m st' ->
@@ -317,8 +355,8 @@ Lemma value_is_nf {t t':protoType} (p1:protoExp t) (p2:protoExp t') :
   (isValue p1) /\ (isValue p2) -> normal_form p1 p2.
 Proof.
   intros.
-  destruct p1; destruct p2; try (solve by inversion 2).
-  unfold normal_form. unfold not. intros. destruct H0. destruct H0. inversion H0.
+  destruct p1; destruct p2;
+  (cbv; intros; solve by inversion 3).
 Qed.
 
 Lemma nf_is_value {t t':protoType} (p1:protoExp t) (p2:protoExp t') : (Dual p1 p2) -> 

@@ -12,7 +12,7 @@ Inductive protoExp : protoType -> Type :=
     -> protoExp (Send t p')
 | ReceiveC {t:type} {p':protoType} : ((message t)->(protoExp p'))
                                      -> protoExp (Receive t p')
-| ChoiceC (b:bool) {r s:protoType} :(protoExp r) -> (protoExp s)
+| ChoiceC (b:bool) {r s:protoType} : (protoExp r) -> (protoExp s)
     -> (protoExp (Choice r s))
 | OfferC {r s : protoType} : (protoExp r) -> (protoExp s)
                                         -> protoExp (Offer r s)
@@ -68,17 +68,17 @@ Fixpoint DualT (t t':protoType) : Prop :=
     end
   | Receive p1T p1' =>
     match t' with
-    | Send p2T p2' => (p1T = p2T) /\ (DualT p1' p2')                                
+    | Send p2T p2' => (p1T = p2T) /\ (DualT p1' p2')
     | _ => False
     end
   | Choice p1' p1'' =>
     match t' with
-    | Offer p2' p2'' => (DualT p1' p2') /\ (DualT p1'' p2'')                                                             
+    | Offer p2' p2'' => (DualT p1' p2') /\ (DualT p1'' p2'')            
     | _ => False
     end
   | Offer p1' p1'' =>
     match t' with
-    | Choice p2' p2'' => (DualT p1' p2') /\ (DualT p1'' p2'')                                                               
+    | Choice p2' p2'' => (DualT p1' p2') /\ (DualT p1'' p2'')         
     | _ => False
     end
   | Eps _ =>
