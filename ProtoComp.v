@@ -2,16 +2,6 @@ Require Import Crypto.
 Require Import ProtoRep.
 Require Import ProtoStateSemantics.
 
-
-Definition hoare_triple{p1t p2t p3t:protoType}{t:type}
-           (P:Assertion)
-           (p1:protoExp p1t) (p2:protoExp p2t) (p3:protoExp p3t)
-           (Q:Assertion) : Prop :=
-   forall st st',
-     multi st _ _ _ p1 p2 p3 st' ->
-     P st ->
-     Q st'.
-
 (* TODO:  check a choice/offer protocol in composition(Either type might 
           mess things up.  If so, do we really need returnType here??  Just put type as implicit param here *)
 Inductive protocolComposition : Type :=

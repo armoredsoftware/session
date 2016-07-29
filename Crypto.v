@@ -117,8 +117,8 @@ Defined.
 Hint Resolve inverse_surjective.
 
 Theorem inverse_bijective : forall k k',
-    inverse k = inverse k' ->
-    k = k' /\ forall k, exists k'', inverse k = k''.
+    inverse k = inverse k' -> k = k'
+  /\ forall k, exists k'', inverse k = k''.
 Proof.
   auto.
 Defined.
@@ -285,7 +285,7 @@ Definition decrypt_type(t:type):type :=
 Inductive decryptable {t:type} : (message (Encrypt t)) -> keyType -> Prop :=
 | cDecryptable {m':message t} {j:keyType} : decryptable (encrypt _ m' j) (inverse j).
 
-Fixpoint decrypt{t:type}(m:message (Encrypt t))(k:keyType):
+Fixpoint decrypt{t:type}(m:message (Encrypt t))(k:keyType) :
   (message t * is_decryptable m k)+
   {(is_not_decryptable m k)}.
   refine match m in message t' return (message (decrypt_type t') * is_decryptable m k) + {(is_not_decryptable m k)} with

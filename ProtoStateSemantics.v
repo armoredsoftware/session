@@ -43,10 +43,63 @@ Definition addMBasic t (m:message t) : (list (message Basic)) -> (list (message 
   | _ => fun _ => l
   end (eq_refl t)).
 
+Definition addP (t:type) : forall mt (pf:mt = t),  ((message mt) * (list (message Key))) -> (ob t) -> (ob t).
+Proof.
+  intros. subst. exact (X :: X0 ).
+Defined.
+
+Definition addMp mt (p:((message mt)*(list (message Key)))) : (ob Basic) -> (ob Basic) := fun l => (
+  match mt as t' return (mt = t') -> (ob Basic) with
+  | Basic => fun pf => (addP _ _ pf p l)
+  | _ => fun _ => l
+  end (eq_refl mt)).
+
+Definition addMpK mt (p:((message mt)*(list (message Key)))) : (ob Key) -> (ob Key) := fun l => (
+  match mt as t' return (mt = t') -> (ob Key) with
+  | Key => fun pf => (addP _ _ pf p l)
+  | _ => fun _ => l
+  end (eq_refl mt)).
+
+Fixpoint obligations'{mt:type} (m:message mt) (kl: list (message Key))
+                               (l:ob Basic) : ob Basic :=
+  match m with
+  | encrypt mt' m' k => match mt' with
+                       | Basic => let new := (m', (kl ++ [(key k)])) in
+                                 addMp mt' new l
+                       | _ => obligations' m' (kl ++ [(key k)]) l
+                       end
+  | pair _ _ m1 m2 => (obligations' m1 kl l) ++ (obligations' m2 kl l)
+  | basic n => addMp _ ((basic n), kl) l
+  | _ => addMp _ (m, nil) l                                           
+  end.
+
+
+Definition obligations{mt:type} (m:message mt) : ob Basic :=
+  obligations' m nil nil.
+
+Fixpoint obligationsK'{mt:type} (m:message mt) (kl: list (message Key))
+                               (l:ob Key) : ob Key :=
+  match m with
+  | encrypt mt' m' k => match mt' with
+                       | Key => let new := (m', (kl ++ [(key k)])) in
+                                 addMpK _ new l
+                       | _ => obligationsK' m' (kl ++ [(key k)]) l
+                       end
+  | pair _ _ m1 m2 => (obligationsK' m1 kl l) ++ (obligationsK' m2 kl l)
+  | key k => addMpK _ ((key k), kl) l 
+  | _ => addMpK _ (m, nil) l                                           
+  end.
+
+Definition obligationsK{mt:type} (m:message mt) : ob Key :=
+  obligationsK' m nil nil.
+
 Definition updateState{t:type} (m:message t) (sIn: State) : State :=
   match t with
   | Basic => mkState  sIn.(keys) (addMBasic t m sIn.(basics)) sIn.(kOb) sIn.(bOb)
   | Key => mkState (addMKey t m sIn.(keys)) sIn.(basics) sIn.(kOb) sIn.(bOb)
+  | Encrypt _ => mkState sIn.(keys) sIn.(basics)
+                                       ((obligationsK m) ++ sIn.(kOb))
+                                       ((obligations m) ++ sIn.(bOb))                                                                    
   | _ =>  sIn
   end.
 
@@ -393,10 +446,7 @@ Proof.
 Defined.
 
 
-Definition addP (t:type) : forall mt (pf:mt = t),  ((message mt) * (list (message Key))) -> (ob t) -> (ob t).
-Proof.
-  intros. subst. exact (X :: X0 ).
-Defined.
+
 
 (*
 Definition addMp(xxx:type) mt (p:((message mt)*(list (message Key)))) : (ob xxx) -> (ob xxx) := fun l => (
@@ -406,49 +456,9 @@ Definition addMp(xxx:type) mt (p:((message mt)*(list (message Key)))) : (ob xxx)
   end (eq_refl mt)).
  *)
 
-Definition addMp mt (p:((message mt)*(list (message Key)))) : (ob Basic) -> (ob Basic) := fun l => (
-  match mt as t' return (mt = t') -> (ob Basic) with
-  | Basic => fun pf => (addP _ _ pf p l)
-  | _ => fun _ => l
-  end (eq_refl mt)).
-
-Definition addMpK mt (p:((message mt)*(list (message Key)))) : (ob Key) -> (ob Key) := fun l => (
-  match mt as t' return (mt = t') -> (ob Key) with
-  | Key => fun pf => (addP _ _ pf p l)
-  | _ => fun _ => l
-  end (eq_refl mt)).
-
-Fixpoint obligations'{mt:type} (m:message mt) (kl: list (message Key))
-                               (l:ob Basic) : ob Basic :=
-  match m with
-  | encrypt mt' m' k => match mt' with
-                       | Basic => let new := (m', (kl ++ [(key k)])) in
-                                 addMp mt' new l
-                       | _ => obligations' m' (kl ++ [(key k)]) l
-                       end
-  | pair _ _ m1 m2 => (obligations' m1 kl l) ++ (obligations' m2 kl l)
-  | _ => addMp _ (m, nil) l                                           
-  end.
 
 
-Definition obligations{mt:type} (m:message mt) : ob Basic :=
-  obligations' m nil nil.
 
-Fixpoint obligationsK'{mt:type} (m:message mt) (kl: list (message Key))
-                               (l:ob Key) : ob Key :=
-  match m with
-  | encrypt mt' m' k => match mt' with
-                       | Key => let new := (m', (kl ++ [(key k)])) in
-                                 addMpK _ new l
-                       | _ => obligationsK' m' (kl ++ [(key k)]) l
-                       end
-  | pair _ _ m1 m2 => (obligationsK' m1 kl l) ++ (obligationsK' m2 kl l)
-  | _ => addMpK _ (m, nil) l                                           
-  end.
-
-
-Definition obligationsK{mt:type} (m:message mt) : ob Key :=
-  obligationsK' m nil nil.
 
 Definition encData := (basic 1).
 Definition oneEnc{mt:type} (m:message mt) := encrypt _ m (public 0).
@@ -517,11 +527,19 @@ Eval compute in m_eq (key (public 0)) (basic 0).
 
                         
 
-Fixpoint my_remove {t:type} (m:message t) (l:list (message t)) : list (message t) :=
+(*Fixpoint my_remove {t:type} (m:message t) (l:list (message t)) : list (message t) :=
   match l with
   | [] => l
   | h :: t => if (m_eq m h) then my_remove m t
              else h :: (my_remove m t)
+  end.
+ *)
+
+Fixpoint my_removeK (m:message Key) (l:list (message Key)) : list (message Key) :=
+  match l with
+  | [] => l
+  | h :: t => if (m_eq m h) then my_removeK m t
+             else h :: (my_removeK m t)
   end.
 
 Fixpoint my_in {t:type} (m:message t) (l:list (message t)) : bool :=
@@ -529,11 +547,24 @@ Fixpoint my_in {t:type} (m:message t) (l:list (message t)) : bool :=
   | [] => false
   | h :: t => if (m_eq m h) then true
              else my_in m t
+  end. 
+
+Fixpoint my_inB (m:message Basic) (l:list (message Basic)) : bool :=
+  match l with
+  | [] => false
+  | h :: t => if (m_eq m h) then true
+             else my_inB m t
   end.
-    
+
+Fixpoint my_inK (m:message Key) (l:list (message Key)) : bool :=
+  match l with
+  | [] => false
+  | h :: t => if (m_eq m h) then true
+             else my_inK m t
+  end.
 
 Definition kList := [(key (public 0)); (key (private 0))].
-Eval compute in my_remove (key (private 0)) kList.
+Eval compute in my_removeK (key (private 0)) kList.
 
 Definition empty {t:type} (l:list (message t)) : bool :=
   beq_nat 0 (length l).
@@ -544,6 +575,14 @@ Fixpoint ob_remove (m:message Key) (obIn:ob Key) : ob Key :=
   | h :: t => if (m_eq m (fst h)) then ob_remove m t
              else h :: (ob_remove m t)
   end.
+
+Fixpoint ob_removeB (m:message Basic) (obIn:ob Basic) : ob Basic :=
+  match obIn with
+  | [] => obIn
+  | h :: t => if (m_eq m (fst h)) then ob_removeB m t
+             else h :: (ob_removeB m t)
+  end.
+
 
 (*Definition ob (t:type) := list ((message t) * (list (message Key))).
 
@@ -559,11 +598,22 @@ Fixpoint updateObs (k:message Key) (obK:ob Key) : (ob Key) :=
   match obK with
   | [] => obK
   | h :: t => let obs := (snd h) in
-             if (my_in k obs) then 
-               let newObs := my_remove k obs in
+             if (my_inK k obs) then 
+               let newObs := my_removeK k obs in
                let newH := ((fst h), newObs) in
                newH :: (updateObs k t)
              else h :: (updateObs k t)
+  end.
+
+Fixpoint updateObsB (k:message Key) (obB:ob Basic) : (ob Basic) :=
+  match obB with
+  | [] => obB
+  | h :: t => let obs := (snd h) in
+             if (my_inK k obs) then 
+               let newObs := my_removeK k obs in
+               let newH := ((fst h), newObs) in
+               newH :: (updateObsB k t)
+             else h :: (updateObsB k t)
   end.
 
 Fixpoint getReleasedKeys' (obK:ob Key) (l:list (message Key)) : list (message Key) :=
@@ -579,10 +629,29 @@ Fixpoint getReleasedKeys' (obK:ob Key) (l:list (message Key)) : list (message Ke
 Definition getReleasedKeys (obK:ob Key) : list (message Key) :=
   getReleasedKeys' obK [].
 
+Fixpoint getReleasedBasics' (obB:ob Basic) (l:list (message Basic)) : list (message Basic) :=
+  match obB with
+  | [] => l
+  | h :: t => let obs := (snd h) in
+             if (empty obs) then
+               getReleasedBasics' t (l++[(fst h)])
+             else
+               getReleasedBasics' t l
+  end.
+
+Definition getReleasedBasics (obB:ob Basic) : list (message Basic) :=
+  getReleasedBasics' obB [].
+
 Fixpoint cleanOb (releasedKeys:list (message Key)) (obK:ob Key) : ob Key :=
   match releasedKeys with
   | [] => obK
   | h :: t => cleanOb t (ob_remove h obK)
+  end.
+
+Fixpoint cleanObB (releasedKeys:list (message Basic)) (obB:ob Basic) : ob Basic :=
+  match releasedKeys with
+  | [] => obB
+  | h :: t => cleanObB t (ob_removeB h obB)
   end.
     
 Definition normObk (k:message Key) (obK:ob Key) :
@@ -591,6 +660,13 @@ Definition normObk (k:message Key) (obK:ob Key) :
   let releasedKeys := getReleasedKeys newObk in
   let cleanedNewObk := cleanOb releasedKeys newObk in
   (cleanedNewObk, releasedKeys).
+
+Definition normObB (k:message Key) (obB:ob Basic) :
+  ((ob Basic)*(list (message Basic))) :=
+  let newObB := updateObsB k obB in
+  let releasedBasics := getReleasedBasics newObB in
+  let cleanedNewObB := cleanObB releasedBasics newObB in
+  (cleanedNewObB, releasedBasics).
 
 Fixpoint normState' (lIn:list (message Key)) (obk:ob Key)
          (newl:list (message Key)) :
@@ -603,9 +679,24 @@ Fixpoint normState' (lIn:list (message Key)) (obk:ob Key)
              normState' t newOb (newl ++ newRel)
   end.
 
+Fixpoint normStateB' (lIn:list (message Key)) (obB:ob Basic)
+         (newl:list (message Basic)) :
+  ((list (message Basic)) * (ob Basic)) :=
+  match lIn with
+  | [] => (newl, obB)
+  | h :: t => let once := normObB h obB in
+             let newOb := fst once in
+             let newRel := snd once in
+             normStateB' t newOb (newl ++ newRel)
+  end.
+
 Definition normState (lIn:list (message Key)) (obk:ob Key) :
   ((list (message Key)) * (ob Key)) :=
   normState' lIn obk [].
+
+Definition normStateB (lIn:list (message Key)) (obB:ob Basic) :
+  ((list (message Basic)) * (ob Basic)) :=
+  normStateB' lIn obB [].
     
 Fixpoint normStateMulti' (lIn:list (message Key)) (obk:ob Key) (n:nat) :
   ((list (message Key)) * (ob Key)) :=
@@ -616,12 +707,32 @@ Fixpoint normStateMulti' (lIn:list (message Key)) (obk:ob Key) (n:nat) :
     normStateMulti' (lIn ++ (fst onePass)) (snd onePass) n'
   end.
 
+Fixpoint normStateMultiB' (lIn:list (message Key))
+         (bIn:list (message Basic)) (obB:ob Basic) (n:nat) :
+  ((list (message Basic)) * (ob Basic)) :=
+  match n with
+  | O => (bIn, obB)
+  | S n' => 
+    let onePass := normStateB lIn obB in
+    normStateMultiB' lIn (bIn ++ (fst onePass)) (snd onePass) n'
+  end.
+
 Definition normStateMulti (lIn:list (message Key)) (obk:ob Key) :
   ((list (message Key)) * (ob Key)) :=
-  normStateMulti' lIn obk 1000.
+  normStateMulti' lIn obk 5.
+
+Definition normStateMultiB (lIn:list (message Key))
+           (bIn:list (message Basic)) (obB:ob Basic) :
+  ((list (message Basic)) * (ob Basic)) :=
+  normStateMultiB' lIn bIn obB 5.
+
+Print oneEnc.
 
 Definition obEx := obligations (pair _ _ (oneEnc (basic 1)) (triEncrypt (basic 2))).
 Eval compute in obEx.
+
+Definition obEx' := obligations (encrypt _ (pair _ _ (basic 3) (key (public 2))) (public 33)).
+Definition obEx'K := obligationsK (encrypt _ (pair _ _ (basic 3) (key (public 2))) (public 33)).
 
 Definition obExK := obligationsK (pair _ _ (oneEnc (key (public 33))) (triEncrypt (key (public 22)))).
 Eval compute in obExK.
@@ -629,7 +740,28 @@ Eval compute in obExK.
 Eval compute in normState [(key (public 0))] obExK.
 Eval compute in normStateMulti [(key (public 0)); (key (public 2))] obExK.
 
+Definition newState (s:State) : State :=
+  let oldKeys := s.(keys) in
+  let oldKeyObs := s.(kOb) in
+  let oldBasics := s.(basics) in
+  let oldBasicObs := s.(bOb) in
+  let keyNormResult := normStateMulti oldKeys oldKeyObs in
+  let newKeys := fst keyNormResult in
+  let newKeyObs := snd keyNormResult in
+  let basicNormResult := normStateMultiB newKeys oldBasics oldBasicObs in
+  let newBasics := fst basicNormResult in
+  let newBasicObs := snd basicNormResult in
+  mkState newKeys newBasics newKeyObs newBasicObs.
 
+
+Definition st1 := mkState [(key (public 0))] [] obExK obEx.
+Eval compute in st1.
+
+Eval compute in newState st1.
+
+Definition st2 := mkState [(key (public 0))] [] (obExK ++ obEx'K) (obEx' ++ obEx).
+
+Eval compute in newState st2.
 
 
 
