@@ -54,6 +54,12 @@ Definition proto2 :=
 Definition payload := (basic 0).
 Definition p1s := (other payload).
                                     
+(*Definition multi_party_protocol :=
+  x <- doProto protoA1 protoB1;
+  y <- doProto (protoA2 x) protoC1;
+  protoReturn y.
+*)
+
 Definition client :=
   x <- doProto p1s proto1;
   let ox := (other x) in

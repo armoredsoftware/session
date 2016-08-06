@@ -180,7 +180,7 @@ Definition getP2Type (t:type):type :=
 Definition pairFst{t1 t2: type} (m:message (Pair t1 t2)) : message t1 :=
   match m in message t' return message (getP1Type t') with 
   | pair _ _ m1 _ => m1
-  | bad _ => bad _ (*(getP1Type tb1) *)
+  | bad _ => bad _
   | _ => bad _                
   end.
 
