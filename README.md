@@ -1,12 +1,12 @@
 # session
 
 Dependencies:
--Emacs Proof General (tested under Version 4.3pre150930): (https://proofgeneral.github.io/)
--Coq (tested under version 8.5pl1):  https://coq.inria.fr/
+* Emacs Proof General (tested under Version 4.3pre150930): (https://proofgeneral.github.io/)
+* Coq (tested under version 8.5pl1):  https://coq.inria.fr/
 
 Compilation instructions:
--type `make`
--open the desired .v file and step through the Coq definitions and
+1. type `make`
+2. open the desired .v file and step through the Coq definitions and
 proofs interactively!
 
 Crypto.v:  A dependently typed model of perfect cryptography.
