@@ -10,12 +10,12 @@ Compilation instructions:
 proofs interactively!
 
 Crypto.v:  A dependently typed model of perfect cryptography.
-Includes the \texttt{message} Inductive type.
+Includes the message Inductive type.
 
 ProtoRep.v:  The protocol representation.  Includes the
-implentation of Session Types (\texttt{protoType} Inductive type), the
-protocol expressions that inhabit them (\texttt{protoExp} Inductive
-type), and the \texttt{Dual} definition.
+implentation of Session Types (protoType Inductive type), the
+protocol expressions that inhabit them (protoExp Inductive
+type), and the Dual definition.
 
 ProtoStateSemantics.v:  Operational semantics and proofs about it.
 
