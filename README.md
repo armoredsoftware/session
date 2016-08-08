@@ -3,6 +3,7 @@
 Dependencies:
 * Emacs Proof General (tested under Version 4.3pre150930): (https://proofgeneral.github.io/)
 * Coq (tested under version 8.5pl1):  https://coq.inria.fr/
+* In place of the two dependencies above, CoqIDE(https://coq.inria.fr/download) is a bundle of an IDE and the Coq compiler.  The proofs have NOT been tested on CoqIDE yet, so the proofs may require some modification.  Use at your own risk.  Proof General and Coq with the versions listed above are recommended to be sure the proofs compile.
 
 Compilation instructions:
 1. type `make`
