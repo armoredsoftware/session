@@ -5,7 +5,10 @@ Require Import Eqdep_dec.
 Require Import Program.
 Require Import Coq.Program.Equality.
 Require Import SfLib.
-Require Import State.
+(*Require Import State.*)
+
+Definition State := nat.
+Definition updateState{t:type} (m:message t) (s:State) := s.
 
 Inductive step : forall (s:State) (t r t':protoType),
     (protoExp t) -> (protoExp r) -> (protoExp t') -> State -> Prop :=
@@ -29,7 +32,8 @@ Inductive step : forall (s:State) (t r t':protoType),
                      (s:protoExp st) (s0:protoExp st') stt,
     step stt _ _ _ (OfferC r0 s0) (ChoiceC true r s) r0 stt
 | ST_Offer_false : forall rt rt' st st'
-                     (r:protoExp rt) (r0:protoExp rt')                     (s:protoExp st) (s0:protoExp st') stt,
+                     (r:protoExp rt) (r0:protoExp rt')
+                     (s:protoExp st) (s0:protoExp st') stt,
     step stt _ _ _ (OfferC r0 s0) (ChoiceC false r s) s0 stt.
 
 Notation "'stepe' st st'" := (step st _ _ _ st') (at level 50).
@@ -49,6 +53,8 @@ Inductive multi : forall s (t r t':protoType),
 
 Notation "'multie' st st'" := (multi st _ _ _ st')
                                 (at level 50).
+
+(*
 
 Definition normal_form {p1t p2t:protoType}
            (p1:protoExp p1t)(p2:protoExp p2t) : Prop :=
@@ -227,3 +233,5 @@ Proof.
   intros. apply nf_is_value in H0. assumption. assumption.
   intros. apply value_is_nf in H0. assumption.
 Qed.
+
+*)

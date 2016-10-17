@@ -18,16 +18,6 @@ Inductive protoExp : protoType -> Type :=
                                         -> protoExp (Offer r s)
 | ReturnC {t:type} : (message t) -> protoExp (Eps t).
 
-Fixpoint returnType (pt : protoType) : type :=
-  match pt with
-  | Eps t => t
-  | Send _ pt' => returnType pt'
-  | Receive _ pt' => returnType pt'
-  | Choice pt' pt'' => Either (returnType pt') (returnType pt'')
-  | Offer pt' pt'' => Either (returnType pt') (returnType pt'')
-  end.
-
-
 Notation "x :!: y" := (Send x y)
                         (at level 50, left associativity). 
 Notation "x :!: y" := (protoExp (Send x y))
