@@ -87,46 +87,11 @@ Eval compute in getId ares.
 Eval compute in getId bres.
 Eval compute in getId idres.
 
-Definition updateA (aNonce:message Nonce) (rIn:message resT) : message resT :=
-  pair _ _ (pair _ _ aNonce (getBnonce rIn)) (getId rIn).
-
-Eval compute in updateA (basic 0) res.
-
-Definition updateB (bNonce:message Nonce) (rIn:message resT) : message resT :=
-  pair _ _ (pair _ _ (getAnonce rIn) bNonce) (getId rIn).
-
-Eval compute in updateB (basic 0) res.
-
-Definition updateId (id:message Id) (rIn:message resT) : message resT :=
-  pair _ _ (pair _ _ (getAnonce rIn) (getBnonce rIn)) id.
-
-Eval compute in updateId (basic 0) res.
-
-Definition initT := Pair Nonce Id.
-Definition init : message initT
-  := pair _ _ (bad Nonce) (bad Id).
-
 Definition getPubkey (m:message Id) :=
   match m with
   | basic n => public n
-  | _ => public 0
+  | _ => public 42
   end.
-
-Definition bLast (id:message Id) (aRes:message resT) :=
-  x <- receive;
-  ReturnC (pair Nonce _ x id).
-
-Definition iLast :=
-  x <- receive;
-  send x;
-  ReturnC (t:=Encrypt Nonce) x.
-
-Definition aLast (id:message Id) (aRes:message resT) :=
-  x <- receive;
-  let na := pairFst (t1:=Nonce) x in
-  let nb := pairSnd x in
-      send (encrypt Nonce nb (getPubkey id));
-    ReturnC null.
 
 Definition extractPayload (m:message Basic) : nat :=
   match m with
@@ -137,6 +102,110 @@ Definition extractPayload (m:message Basic) : nat :=
 Definition aId : (message Id) := (basic 0).
 Definition bId : (message Id) := (basic 1).
 Definition iId : (message Id) := (basic 2).
+
+Definition expectedA :=
+  pair _ _ (basic 0) (basic 1).
+
+Definition expectedB :=
+  pair _ _
+       (pair _ _ (basic 0) (basic 1))
+       aId.
+
+(* Needham-Schroeder *)
+
+Definition nsA (myPri:keyType) (theirId:message Id) :=
+  let myNonce := basic 0 in
+  let myId        : (message Id)    := aId  in
+  let theirPubkey : (keyType)       := (getPubkey theirId) in 
+  let s1          : (message (Encrypt (Pair Nonce Id)))
+                                    := encrypt _
+                                       (pair _ _ myNonce myId) theirPubkey in
+  send s1;
+  r1 <- receive;
+  let decTry      : (message (Pair Nonce Nonce))
+                                    := decryptM r1 myPri in
+  let myNonce'    : (message  Nonce)
+                                    := (pairFst decTry) in
+  let theirNonce  : (message Nonce) := (pairSnd decTry) in
+  (*let newId       : (message Id)    := pairSnd decTry in*)
+  let newPubkey   : (keyType)       := (getPubkey theirId(*newId*)) in
+  let s2          : (message (Encrypt Nonce))
+                                    := encrypt _ theirNonce newPubkey in
+  send s2;
+  ReturnC (pair _ _ myNonce' theirNonce).
+Check nsA.
+
+Definition nsB (myPri:keyType) (intruder:bool) :=
+  r1 <- receive;
+  (*let myId        : (message Id)    := bId  in*)
+  let myNonce     : (message Nonce) := (basic 1) in
+  let newR1       : (message (Encrypt(Pair Nonce Id)))
+                    := if (intruder) then
+                         let decI := decryptM r1 (private 2) in
+                           encrypt _ decI (getPubkey bId)
+                       else
+                         r1 in
+  let decB := decryptM newR1 myPri in
+  let they := extractPayload (pairSnd decB) in
+  let theirNonce := pairFst decB in
+  let theirId := pairSnd decB in
+  let theirPub := (public they) in
+  let s1 := encrypt _
+             (pair _ _ theirNonce myNonce) (theirPub) in
+  send s1;
+  r2 <- receive;
+  let decB2 := if (intruder) then
+                 decryptM r2 (private 2)
+               else decryptM r2 myPri in
+  let myNonce' := decB2 in
+  let ab := pair Nonce Nonce theirNonce myNonce' in
+  ReturnC (pair _ _ ab theirId).
+Check nsB.
+
+Example dualab' : forall x y z b, Dual (nsA x y) (nsB z b).
+Proof.
+  intros; unfold nsA; unfold nsB; cbn;
+  split. reflexivity.
+  split. reflexivity.
+  split. reflexivity.
+  trivial.
+Defined.
+
+
+Example nsBresult :
+  (*let intruder := true in*)
+  forall (intruder:bool), 
+  let theirId := if(intruder)
+                 then iId
+                 else bId in
+  let aPri := (private 0) in
+  let bPri := (private 1) in
+  
+  forall st m, 
+    multi st _ _ _ (nsB bPri intruder) (nsA aPri theirId) (ReturnC m) st ->
+    (m = expectedB).
+Proof.
+  intros intruder. destruct intruder.
+  intros.
+  unfold nsA. unfold nsB.
+  dep_destruct H. clear H.
+  dep_destruct s0. dep_destruct s1. clear s0. clear s1.
+  dep_destruct x1. clear x1. dep_destruct s0. dep_destruct s1. clear s0. clear s1.
+  dep_destruct x2. clear x2. dep_destruct s1. dep_destruct s3. clear s1. clear s3.
+  dep_destruct x1. clear x1. cbv. simpl. reflexivity.
+  inversion s3.
+
+  intros.
+  unfold nsA. unfold nsB.
+  dep_destruct H. clear H.
+  dep_destruct s0. dep_destruct s1. clear s0. clear s1.
+  dep_destruct x1. clear x1. dep_destruct s0. dep_destruct s1. clear s0. clear s1.
+  dep_destruct x2. clear x2. dep_destruct s1. dep_destruct s3. clear s1. clear s3.
+  dep_destruct x1. clear x1. cbv. simpl. reflexivity.
+  inversion s3.  
+Qed.
+
+(* Needham-Schroeder-Lowe *)
 
 Definition nslA (myPri:keyType) (theirId:message Id) :=
   let myNonce := basic 0 in
@@ -196,17 +265,72 @@ Proof.
   trivial.
 Defined.
 
-Definition expectedA :=
-  pair _ _ (basic 0) (basic 1).
+(*
+Theorem needham_A_auth : forall (k:keyType) (x:message Basic) st st', 
+    multi
+      st
+      _ _ _
+      (Needham_A k bPub)
+      (Needham_B bPri aPub)
+      (ReturnC (pair _ _ x bNonce))
+      st'
+    -> (k = inverse aPub).
+ *)
 
-Definition expectedB :=
-  pair _ _
-       (pair _ _ (basic 0) (basic 1))
-       aId.
+(* 
+  unfold decryptM in x0.
+  destruct  (decrypt
+            (encrypt _ (pair _ _ aNonce (basic bNonceSecret)) aPub)
+            k) as [p | _].
+  destruct p as (m , i).
+    dep_destruct i. reflexivity. simpl in x0.
+    inversion x0.
+  inversion s4.
+*)
 
-
-Example aResult :
+Example nslAauth :
+  forall (k:keyType) (an:message Nonce), 
   let intruder := false in
+  let theirId := if(intruder)
+                 then iId
+                 else bId in
+  let aPri := k in
+  let bPri := (private 1) in
+  let expected := pair _ _ an (basic 1) in
+  
+  forall st m, 
+    multi st _ _ _
+          (nslA aPri theirId)
+          (nslB bPri intruder)
+          (ReturnC m)
+          st
+    /\
+    (m = expected) ->
+    (k = inverse (getPubkey aId)).
+Proof.
+  intros.
+  unfold nslA. unfold nslB. cbn in theirId.
+  dep_destruct H. clear H.
+  dep_destruct m0. clear m0. dep_destruct s0. dep_destruct s1. clear s0. clear s1.
+  dep_destruct x1. clear x1. dep_destruct s0. dep_destruct s1. clear s0. clear s1.
+  dep_destruct x2. clear x2. dep_destruct s0. dep_destruct s1. clear s0. clear s1.
+  dep_destruct x1. clear x1. clear x3. unfold decryptM in x.
+  destruct (decrypt
+                (encrypt (Pair (Pair Basic Basic) Id)
+                   (pair (Pair Basic Basic) Id
+                      (pair Basic Basic (basic 0) (basic 1)) bId)
+                   (public 0))) as [p | _].
+  destruct p as (m, i).
+  dep_destruct i. reflexivity.
+  inversion x.  
+  inversion s1.
+Qed.
+  
+
+
+Example nslAresult :
+  forall (intruder:bool),
+  (*let intruder := false in*)
   let theirId := if(intruder)
                  then iId
                  else bId in
@@ -217,6 +341,16 @@ Example aResult :
     multi st _ _ _ (nslA aPri theirId) (nslB bPri intruder) (ReturnC m) st ->
     (m = expectedA).
 Proof.
+  intros intruder. destruct intruder.
+  intros.
+  unfold nslA. unfold nslB.
+  dep_destruct H. clear H.
+  dep_destruct s0. dep_destruct s1. clear s0. clear s1.
+  dep_destruct x1. clear x1. dep_destruct s0. dep_destruct s1. clear s0. clear s1.
+  dep_destruct x2. clear x2. dep_destruct s0. dep_destruct s1. clear s0. clear s1.
+  dep_destruct x1. clear x1. reflexivity.
+  inversion s1.
+
   intros.
   unfold nslA. unfold nslB.
   dep_destruct H. clear H.
@@ -227,7 +361,7 @@ Proof.
   inversion s1.
 Qed.
 
-Example bResult :
+Example nslBresultNoIntruder :
   let intruder := false in
   let theirId := if(intruder)
                  then iId
@@ -249,67 +383,8 @@ Proof.
   inversion s3.
 Qed.
 
-Definition nsA (myPri:keyType) (theirId:message Id) :=
-  let myNonce := basic 0 in
-  let myId        : (message Id)    := aId  in
-  let theirPubkey : (keyType)       := (getPubkey theirId) in 
-  let s1          : (message (Encrypt (Pair Nonce Id)))
-                                    := encrypt _
-                                       (pair _ _ myNonce myId) theirPubkey in
-  send s1;
-  r1 <- receive;
-  let decTry      : (message (Pair Nonce Nonce))
-                                    := decryptM r1 myPri in
-  let myNonce'    : (message  Nonce)
-                                    := (pairFst decTry) in
-  let theirNonce  : (message Nonce) := (pairSnd decTry) in
-  (*let newId       : (message Id)    := pairSnd decTry in*)
-  let newPubkey   : (keyType)       := (getPubkey theirId(*newId*)) in
-  let s2          : (message (Encrypt Nonce))
-                                    := encrypt _ theirNonce newPubkey in
-  send s2;
-  ReturnC (pair _ _ myNonce' theirNonce).
-Check nsA.
-
-Definition nsB (myPri:keyType) (intruder:bool) :=
-  r1 <- receive;
-  (*let myId        : (message Id)    := bId  in*)
-  let myNonce     : (message Nonce) := (basic 1) in
-  let newR1       : (message (Encrypt(Pair Nonce Id)))
-                    := if (intruder) then
-                         let decI := decryptM r1 (private 2) in
-                           encrypt _ decI (getPubkey bId)
-                       else
-                         r1 in
-  let decB := decryptM newR1 myPri in
-  let they := extractPayload (pairSnd decB) in
-  let theirNonce := pairFst decB in
-  let theirId := pairSnd decB in
-  let theirPub := (public they) in
-  let s1 := encrypt _
-             (pair _ _ theirNonce myNonce) (theirPub) in
-  send s1;
-  r2 <- receive;
-  let decB2 := if (intruder) then
-                 decryptM r2 (private 2)
-               else decryptM r2 myPri in
-  let myNonce' := decB2 in
-  let ab := pair Nonce Nonce theirNonce myNonce' in
-  ReturnC (pair _ _ ab theirId).
-Check nsB.
-
-Example dualab' : forall x y z b, Dual (nsA x y) (nsB z b).
-Proof.
-  intros; unfold aa; unfold bb; cbn;
-  split. reflexivity.
-  split. reflexivity.
-  split. reflexivity.
-  trivial.
-Defined.
-
-
-Example bResult' :
-  let intruder := true in
+Example nslBresultIntruder :
+  let intruder := true in 
   let theirId := if(intruder)
                  then iId
                  else bId in
@@ -317,22 +392,64 @@ Example bResult' :
   let bPri := (private 1) in
   
   forall st m, 
-    multi st _ _ _ (nsB bPri intruder) (nsA aPri theirId) (ReturnC m) st ->
-    (m = expectedB).
+    multi st _ _ _ (nslB bPri intruder) (nslA aPri theirId) (ReturnC m) st ->
+    ((basic 1) <> (getBnonce m)).
 Proof.
+  unfold nslA. unfold nslB.
   intros.
-  unfold aa. unfold bb.
   dep_destruct H. clear H.
-  dep_destruct s0. dep_destruct s1. clear s0. clear s1.
-  dep_destruct x1. clear x1. dep_destruct s0. dep_destruct s1. clear s0. clear s1.
+  dep_destruct s0. dep_destruct s1. clear s0. clear s1. cbn in x1.
+  dep_destruct x1. clear x1.  dep_destruct s0. dep_destruct s1. clear s0. clear s1.
+  cbn in x2.
   dep_destruct x2. clear x2. dep_destruct s1. dep_destruct s3. clear s1. clear s3.
-  dep_destruct x1. clear x1. cbv. simpl. reflexivity.
+  cbn in x1.
+  dep_destruct x1. clear x1. cbv in x3. unfold not. intros. inversion H.
   inversion s3.
 Qed.
+
+
   
     
 
 
+(*
+Definition bLast (id:message Id) (aRes:message resT) :=
+  x <- receive;
+  ReturnC (pair Nonce _ x id).
+
+Definition iLast :=
+  x <- receive;
+  send x;
+  ReturnC (t:=Encrypt Nonce) x.
+
+Definition aLast (id:message Id) (aRes:message resT) :=
+  x <- receive;
+  let na := pairFst (t1:=Nonce) x in
+  let nb := pairSnd x in
+      send (encrypt Nonce nb (getPubkey id));
+    ReturnC null.
+
+
+
+Definition updateA (aNonce:message Nonce) (rIn:message resT) : message resT :=
+  pair _ _ (pair _ _ aNonce (getBnonce rIn)) (getId rIn).
+
+Eval compute in updateA (basic 0) res.
+
+Definition updateB (bNonce:message Nonce) (rIn:message resT) : message resT :=
+  pair _ _ (pair _ _ (getAnonce rIn) bNonce) (getId rIn).
+
+Eval compute in updateB (basic 0) res.
+
+Definition updateId (id:message Id) (rIn:message resT) : message resT :=
+  pair _ _ (pair _ _ (getAnonce rIn) (getBnonce rIn)) id.
+
+Eval compute in updateId (basic 0) res.
+
+Definition initT := Pair Nonce Id.
+Definition init : message initT
+  := pair _ _ (bad Nonce) (bad Id).
+*)
 
 
 
@@ -345,13 +462,7 @@ Qed.
 
 
 
-
-
-
-
-
-
-
+(*
 Definition aNonceSecret := 11.
 Definition bNonceSecret := 22.
 Definition aNonce := (basic aNonceSecret).
@@ -409,6 +520,21 @@ Proof.
   split. reflexivity.
   reflexivity.
 Qed.
+ *)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 (*
 

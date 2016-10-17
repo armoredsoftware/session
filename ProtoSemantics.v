@@ -51,8 +51,8 @@ Inductive multi : forall s (t r t':protoType),
                     multi st' _ _ _ y y2 z1 st'' ->
                     multi st _ _ _ x x' z1 st''.
 
-Notation "'multie' st st'" := (multi st _ _ _ st')
-                                (at level 50).
+(*Notation "'multie' st st'" := (multi st _ _ _ st')
+                                (at level 50). *)
 
 (*
 
