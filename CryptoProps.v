@@ -45,9 +45,9 @@ Defined.
 
 Hint Resolve inverse_surjective.
 
-Theorem inverse_bijective : forall k k',
-    inverse k = inverse k' -> k = k'
-  /\ forall k, exists k'', inverse k = k''.
+Theorem inverse_bijective :
+  forall k k', inverse k = inverse k' -> k = k'
+/\ forall k, exists k', inverse k = k'.
 Proof.
   auto.
 Defined.

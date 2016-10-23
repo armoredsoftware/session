@@ -103,23 +103,26 @@ Definition aId : (message Id) := (basic 0).
 Definition bId : (message Id) := (basic 1).
 Definition iId : (message Id) := (basic 2).
 
+Definition aNonce : (message Nonce) := (basic 0).
+Definition bNonce : (message Nonce) := (basic 1).
+
 Definition expectedA :=
   pair _ _ (basic 0) (basic 1).
 
 Definition expectedB :=
   pair _ _
-       (pair _ _ (basic 0) (basic 1))
+       (pair _ _ aNonce bNonce)
        aId.
 
 (* Needham-Schroeder *)
 
-Definition nsA (myPri:keyType) (theirId:message Id) :=
-  let myNonce := basic 0 in
+Definition ns_EntityA (myPri:keyType) (theirId:message Id) :=
+  let myNonce     : (message Nonce) := aNonce in
   let myId        : (message Id)    := aId  in
   let theirPubkey : (keyType)       := (getPubkey theirId) in 
   let s1          : (message (Encrypt (Pair Nonce Id)))
-                                    := encrypt _
-                                       (pair _ _ myNonce myId) theirPubkey in
+                      := encrypt _
+                         (pair _ _ myNonce myId) theirPubkey in
   send s1;
   r1 <- receive;
   let decTry      : (message (Pair Nonce Nonce))
@@ -127,24 +130,21 @@ Definition nsA (myPri:keyType) (theirId:message Id) :=
   let myNonce'    : (message  Nonce)
                                     := (pairFst decTry) in
   let theirNonce  : (message Nonce) := (pairSnd decTry) in
-  (*let newId       : (message Id)    := pairSnd decTry in*)
-  let newPubkey   : (keyType)       := (getPubkey theirId(*newId*)) in
+  let newPubkey   : (keyType)       := (getPubkey theirId) in
   let s2          : (message (Encrypt Nonce))
-                                    := encrypt _ theirNonce newPubkey in
+                      := encrypt _ theirNonce newPubkey in
   send s2;
   ReturnC (pair _ _ myNonce' theirNonce).
-Check nsA.
+Check ns_EntityA.
 
-Definition nsB (myPri:keyType) (intruder:bool) :=
+Definition ns_EntityB (myPri:keyType) (intruder:bool) :=
   r1 <- receive;
-  (*let myId        : (message Id)    := bId  in*)
-  let myNonce     : (message Nonce) := (basic 1) in
+  let myNonce     : (message Nonce) := bNonce in
   let newR1       : (message (Encrypt(Pair Nonce Id)))
                     := if (intruder) then
                          let decI := decryptM r1 (private 2) in
                            encrypt _ decI (getPubkey bId)
-                       else
-                         r1 in
+                       else r1 in
   let decB := decryptM newR1 myPri in
   let they := extractPayload (pairSnd decB) in
   let theirNonce := pairFst decB in
@@ -154,26 +154,34 @@ Definition nsB (myPri:keyType) (intruder:bool) :=
              (pair _ _ theirNonce myNonce) (theirPub) in
   send s1;
   r2 <- receive;
-  let decB2 := if (intruder) then
-                 decryptM r2 (private 2)
-               else decryptM r2 myPri in
+  let newR2 := if (intruder) then
+                 let decI := decryptM r2 (private 2) in
+                   encrypt _ decI (getPubkey bId)
+               else r2 in
+  let decB2 := decryptM newR2 myPri in
   let myNonce' := decB2 in
   let ab := pair Nonce Nonce theirNonce myNonce' in
   ReturnC (pair _ _ ab theirId).
-Check nsB.
+Check ns_EntityB.
 
-Example dualab' : forall x y z b, Dual (nsA x y) (nsB z b).
+Example dualab' : forall x y z b, Dual (ns_EntityA x y) (ns_EntityB z b).
 Proof.
-  intros; unfold nsA; unfold nsB; cbn;
+  intros; unfold ns_EntityA; unfold ns_EntityB; cbn;
   split. reflexivity.
   split. reflexivity.
   split. reflexivity.
   trivial.
 Defined.
+(*Notation "'eval' st a b m" := (multi st _ _ _ a b (ReturnC m) st)
+                            (right associativity, at level 60).*)
 
-
-Example nsBresult :
-  (*let intruder := true in*)
+(*
+Definition expectedB :=
+  pair _ _
+       (pair _ _ aNonce bNonce)
+       aId.
+*)
+Theorem nsBresult :
   forall (intruder:bool), 
   let theirId := if(intruder)
                  then iId
@@ -181,13 +189,15 @@ Example nsBresult :
   let aPri := (private 0) in
   let bPri := (private 1) in
   
-  forall st m, 
-    multi st _ _ _ (nsB bPri intruder) (nsA aPri theirId) (ReturnC m) st ->
+  forall st m,
+    let ea := (ns_EntityA aPri theirId) in
+    let eb := (ns_EntityB bPri intruder) in
+    multi st _ _ _ eb ea (ReturnC m) st ->
     (m = expectedB).
 Proof.
   intros intruder. destruct intruder.
   intros.
-  unfold nsA. unfold nsB.
+  unfold ns_EntityA. unfold ns_EntityB.
   dep_destruct H. clear H.
   dep_destruct s0. dep_destruct s1. clear s0. clear s1.
   dep_destruct x1. clear x1. dep_destruct s0. dep_destruct s1. clear s0. clear s1.
@@ -196,7 +206,7 @@ Proof.
   inversion s3.
 
   intros.
-  unfold nsA. unfold nsB.
+  unfold ns_EntityA. unfold ns_EntityB.
   dep_destruct H. clear H.
   dep_destruct s0. dep_destruct s1. clear s0. clear s1.
   dep_destruct x1. clear x1. dep_destruct s0. dep_destruct s1. clear s0. clear s1.
@@ -289,18 +299,18 @@ Theorem needham_A_auth : forall (k:keyType) (x:message Basic) st st',
 *)
 
 Example nslAauth :
-  forall (k:keyType) (an:message Nonce), 
-  let intruder := false in
+  forall (k:keyType)
+    (n:message Nonce)
+    (intruder:bool), 
   let theirId := if(intruder)
                  then iId
                  else bId in
-  let aPri := k in
   let bPri := (private 1) in
-  let expected := pair _ _ an (basic 1) in
+  let expected := pair _ _ n bNonce in
   
   forall st m, 
     multi st _ _ _
-          (nslA aPri theirId)
+          (nslA k theirId)
           (nslB bPri intruder)
           (ReturnC m)
           st
@@ -308,13 +318,29 @@ Example nslAauth :
     (m = expected) ->
     (k = inverse (getPubkey aId)).
 Proof.
-  intros.
+  intros k n intruder st st' multiProof.
   unfold nslA. unfold nslB. cbn in theirId.
+  destruct intruder.
   dep_destruct H. clear H.
   dep_destruct m0. clear m0. dep_destruct s0. dep_destruct s1. clear s0. clear s1.
   dep_destruct x1. clear x1. dep_destruct s0. dep_destruct s1. clear s0. clear s1.
   dep_destruct x2. clear x2. dep_destruct s0. dep_destruct s1. clear s0. clear s1.
-  dep_destruct x1. clear x1. clear x3. unfold decryptM in x.
+  dep_destruct x1. clear x1. unfold decryptM in x2.
+  destruct (decrypt
+              (encrypt _ (pair _ _
+                               (pair _ _ aNonce bNonce)
+                               bId)
+                       (public 0))) as [p | _].
+  destruct p as (m, i).
+  dep_destruct i. reflexivity.
+  inversion x2.
+  inversion s1.
+
+    dep_destruct H. clear H.
+  dep_destruct m0. clear m0. dep_destruct s0. dep_destruct s1. clear s0. clear s1.
+  dep_destruct x1. clear x1. dep_destruct s0. dep_destruct s1. clear s0. clear s1.
+  dep_destruct x2. clear x2. dep_destruct s0. dep_destruct s1. clear s0. clear s1.
+  dep_destruct x1. clear x1. unfold decryptM in x2.
   destruct (decrypt
                 (encrypt (Pair (Pair Basic Basic) Id)
                    (pair (Pair Basic Basic) Id
@@ -322,7 +348,7 @@ Proof.
                    (public 0))) as [p | _].
   destruct p as (m, i).
   dep_destruct i. reflexivity.
-  inversion x.  
+  inversion x2.
   inversion s1.
 Qed.
   
@@ -383,7 +409,7 @@ Proof.
   inversion s3.
 Qed.
 
-Example nslBresultIntruder :
+Theorem nslBresultIntruder :
   let intruder := true in 
   let theirId := if(intruder)
                  then iId
@@ -393,7 +419,7 @@ Example nslBresultIntruder :
   
   forall st m, 
     multi st _ _ _ (nslB bPri intruder) (nslA aPri theirId) (ReturnC m) st ->
-    ((basic 1) <> (getBnonce m)).
+    (bNonce <> (getBnonce m)).
 Proof.
   unfold nslA. unfold nslB.
   intros.
@@ -407,9 +433,42 @@ Proof.
   inversion s3.
 Qed.
 
-
+Theorem nslBresult :
+  forall (intruder:bool), 
+  let theirId := if(intruder)
+                 then iId
+                 else bId in
+  let aPri := (private 0) in
+  let bPri := (private 1) in
   
-    
+  forall st m,
+    let ea := (nslA aPri theirId) in
+    let eb := (nslB bPri intruder) in
+    multi st _ _ _ eb ea (ReturnC m) st ->
+    (m = expectedB).
+Proof.
+  intros intruder. destruct intruder.
+  intros.
+  unfold ns_EntityA. unfold ns_EntityB.
+  dep_destruct H. clear H.
+  dep_destruct s0. dep_destruct s1. clear s0. clear s1.
+  dep_destruct x1. clear x1. dep_destruct s0. dep_destruct s1. clear s0. clear s1.
+  dep_destruct x2. clear x2. dep_destruct s1. dep_destruct s3. clear s1. clear s3.
+  dep_destruct x1. clear x1. cbv. simpl. (*reflexivity.*) Abort.
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 (*
