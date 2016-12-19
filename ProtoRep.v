@@ -104,4 +104,22 @@ Proof.
   
 Defined.
 
-Definition Dual {t t':protoType} (p1:protoExp t) (p2:protoExp t') : Prop := DualT t t'.
+
+Inductive DualTR : protoType -> protoType -> Prop :=
+| senRec{t t':protoType}{mt mt':type} : (DualTR t t')
+                                        -> (mt = mt')
+                                        -> DualTR (Send mt t)
+                                                 (Receive mt' t')
+| choOff{r s r' s':protoType} : (DualTR r r')
+                                -> (DualTR s s')
+                                -> DualTR (Choice r s)
+                                         (Offer r' s')
+| retDual {mt mt':type} : DualTR (Eps mt)
+                                 (Eps mt').       
+                                            
+
+Inductive Dual {t t':protoType} (p1:protoExp t) (p2:protoExp t') : Prop :=
+| isDual : (DualT t t') -> Dual p1 p2.
+
+Inductive DualR {t t':protoType} (p1:protoExp t) (p2:protoExp t') : Prop :=
+| isDualR : (DualTR t t') -> DualR p1 p2.

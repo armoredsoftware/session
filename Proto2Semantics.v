@@ -51,10 +51,34 @@ Inductive multi : forall s (t r t':protoType),
                     multi st' _ _ _ y y2 z1 st'' ->
                     multi st _ _ _ x x' z1 st''.
 
+
+Inductive DualTR : protoType -> protoType -> Type :=
+| senRecTR: forall (t t':protoType)(mt mt':type), (DualTR t t')
+                                        -> (mt = mt')
+                                        -> DualTR (Send mt t)
+                                                 (Receive mt' t')
+| recSenTR: forall (t t':protoType)(mt mt':type), (DualTR t' t)
+                                        -> (mt = mt')
+                                        -> DualTR  (Receive mt' t') 
+                                                  (Send mt t)           
+| choOffTR : forall (r s r' s':protoType), (DualTR r r')
+                                -> (DualTR s s')
+                                -> DualTR (Choice r s)
+                                         (Offer r' s')
+| offChoTR : forall (r s r' s':protoType), (DualTR r r')
+                                -> (DualTR s s')
+                                -> DualTR (Offer r' s')
+                                         (Choice r s)   
+| retTR : forall (mt mt':type), DualTR (Eps mt)
+                                 (Eps mt').
+
+Inductive DualR {t t':protoType} (p1:protoExp t) (p2:protoExp t') : Type :=
+| isDualR : (DualTR t t') -> DualR p1 p2.
+
 Definition innerProtoType {t t':protoType}
-           (p1:protoExp t) (p2:protoExp t') (pf:Dual p1 p2) : protoType.
+           (p1:protoExp t) (p2:protoExp t') (pf:DualR p1 p2) : protoType.
 Proof.
-  dep_destruct p1; dep_destruct p2; inversion pf; inversion H.
+  dep_destruct p1; dep_destruct p2; inversion pf; inversion H; subst.
   exact p'.
   exact p'.
   destruct b. exact r.
@@ -64,45 +88,102 @@ Proof.
   exact (Eps t).
 Defined.
 
-Theorem dualSym {t t':protoType} : (DualT t t') -> (DualT t' t).
+Theorem dualSym {t t':protoType} : (DualTR t t') -> (DualTR t' t).
 Proof.
-  dep_destruct t; dep_destruct t'; intros H; inversion H.
-  subst. simpl. inversion H.
+  dependent induction t; dep_destruct t'; intros H; inversion H; subst.
+  constructor. apply IHt in H3. assumption. reflexivity.
+  constructor. apply IHt in H3. assumption. reflexivity.
+  constructor; assumption.
+  constructor; assumption.
+  constructor.
+Defined.
 
+Inductive oneAct : Type :=
+| cho : bool -> oneAct.
+
+
+Inductive protocol : Type :=
+| senRec{mt:type} : (message mt) -> protocol ->
+                    ((message mt) -> protocol) -> protocol
+| choOff : bool -> protocol -> protocol -> protocol
+| ret{mt:type} : (message mt) -> protocol.
+
+Fixpoint groupProto{t t':protoType}
+         (p1:protoExp t) (p2:protoExp t') (pf:DualR p1 p2) : protocol.
+Proof.
+  dep_destruct p1; dep_destruct p2; dep_destruct pf; dep_destruct d; subst.
+  apply (senRec (mt:=t0)). exact m. apply (groupProto p' p'0 x (p m)). constructor. assumption. assert protocol. apply (groupProto p'0 p' (p m) x). constructor. apply dualSym. assumption. exact (fun x:(message t0) => X).
+  apply (senRec (mt:=t0)). assumption. apply (groupProto p'0 p' x (p m)). constructor. apply dualSym. assumption. assert protocol. apply (groupProto p' p'0 (p m) x). constructor. assumption. exact (fun x:(message t0) => X).
+  destruct b.
+  apply (groupProto _ _ x1 x3). constructor. assumption.
+  apply (groupProto _ _ x2 x4). constructor. assumption.
+  destruct b.
+  apply (groupProto _ _ x1 x3). constructor. apply dualSym. assumption.
+  apply (groupProto _ _ x2 x4). constructor. apply dualSym. assumption.
+  apply (ret (mt:=t)). assumption.
+Defined.
+                                        
+    
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
 Inductive protocol : Prop :=
-| senRec(t t':protoType) (mt:type) : (DualT (Send mt t) (Receive mt t')) -> 
+| senRec : forall (t t':protoType) (mt:type), (DualTR (Send mt t) (Receive mt t')) -> 
                                       (protoExp (Send mt t)) ->
                                       (protoExp (Receive mt t')) ->
                                       protocol
-| choOff : forall (r s r' s':protoType), (protoExp (Choice r s)) ->
-                                 (protoExp (Offer r' s')) ->
-                                 protocol
-| ret (mt mt':type) : (protoExp (Eps mt)) ->
-                      (protoExp (Eps mt')) ->
-                      protocol.
+| choOff : forall (r s r' s':protoType), (DualTR (Choice r s) (Offer r' s')) ->
+                                    (protoExp (Choice r s)) ->
+                                    (protoExp (Offer r' s')) ->
+                                    protocol
+| ret : forall (mt mt':type), (DualTR (Eps mt) (Eps mt')) ->
+                          (protoExp (Eps mt)) ->
+                          (protoExp (Eps mt')) ->
+                          protocol.
+
+Definition groupProto {t t':protoType}
+           (p1:protoExp t) (p2:protoExp t') (pf:DualR p1 p2) : protocol.
+Proof.
+  dep_destruct p1; dep_destruct p2; inversion pf; inversion H; subst.
+  apply (senRec p' p'0 t0); assumption.
+  apply (senRec p'0 p' t); try (apply dualSym); assumption.
+  apply (choOff r s r0 s0); assumption.
+  apply (choOff r0 s0 r s); try constructor; assumption.
+  apply (ret t t0); assumption.
+Defined.
 
 Definition oneStep (p:protocol) : protocol.
 Proof.
   destruct p.
-  dep_destruct t; dep_destruct t'; inversion H; inversion H1; subst.
-  apply (senRec x x0 t1). simpl. split. reflexivity. assumption.
-  dep_destruct X. assumption. dep_destruct X0. dep_destruct X. exact (p m).
-  apply (senRec x0 x t1). simpl. split. reflexivity. simpl.
+  dep_destruct t; dep_destruct t'; inversion H; inversion H3; subst.
+  apply (senRec x x0 t1). assumption. dep_destruct X. assumption. dep_destruct X0. dep_destruct X. exact (p m).
+  apply (senRec x0 x t0). constructor. apply dualSym. assumption. reflexivity. dep_destruct X0. dep_destruct X. exact (p m). dep_destruct X. assumption.
+  apply (choOff x1 x2 x3 x4). assumption. dep_destruct H. dep_destruct X. assumption. dep_destruct X0. dep_destruct X. exact (p m).
+  apply (choOff x3 x4 x1 x2). constructor. assumption. assumption. dep_destruct X0. dep_destruct X. exact (p m). dep_destruct X. assumption.
+  apply (ret t0 t1). assumption. dep_destruct X. assumption. dep_destruct X0. dep_destruct X. exact (p m).
+  dep_destruct r; dep_destruct r'; try solve by inversion 2.
+  apply (choOff x s x0 s'). inversion H. subst. constructor. inversion H3. assumption. assumption. dep_destruct X. destruct b. Abort.
+
+
                                     
 Fixpoint retType (p:protocol) : type.
 Proof.
   exact (retType 
 
-Definition groupProto {t t':protoType}
-           (p1:protoExp t) (p2:protoExp t') (pf:Dual p1 p2) : protocol.
-Proof.
-  dep_destruct p1; dep_destruct p2; inversion pf; inversion H.
-  subst. apply (senRec p' p'0 t0); assumption.
-  subst. apply (senRec p'0 p' t0); assumption.
-  apply (choOff r s r0 s0); assumption.
-  apply (choOff r0 s0 r s); assumption.
-  apply (ret t t0); assumption.
-Defined.
+
 
 Fixpoint innerProto {t t':protoType}
          (p1:protoExp t) (p2:protoExp t') (pf:Dual p1 p2) : (protoExp (innerProtoType p1 p2 pf)).
