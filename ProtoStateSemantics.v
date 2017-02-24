@@ -144,8 +144,8 @@ Inductive multi : forall s (t r t':protoType),
                     multi st' _ _ _ y y2 z1 st'' ->
                     multi st _ _ _ x x' z1 st''.
 
-Notation "'multie' st st'" := (multi st _ _ _ st')
-                                (at level 50).
+(*Notation "'multie' st st'" := (multi st _ _ _ st')
+                                (at level 50).*)
 
 Definition normal_form {p1t p2t:protoType}
            (p1:protoExp p1t)(p2:protoExp p2t) : Prop :=
@@ -160,6 +160,73 @@ Axiom updateBoth :  forall t (m:message t) x6 x7 p1t p2t p3t (p1:protoExp p1t) (
     multi x6 _ _ _ p1 p2 p3 x7 ->
     multi (updateState m x6) _ _ _ p1 p2 p3 (updateState m x7).
 
+Ltac bool_destruct :=
+  match goal with H: bool |- _ =>
+                  destruct H
+  end.
+
+Ltac steps_destruct :=
+  match goal with H: step _ _ _ _ _ _ _ _ /\ _ |- _ =>
+                  destruct H
+  end.
+
+Ltac step_destruct :=
+  match goal with H: step _ _ _ _ _ _ _ _ |- _ =>
+                  dep_destruct H; clear H
+  end.
+
+
+Parameter A B C : Type.
+Parameter P : A -> B -> C -> Prop.
+Parameter Q : Prop.
+
+(* This will try to match an hypothesis named h with 'exists u: T, P' 
+   and return the name of 'u' *)
+Ltac extract_name h :=
+  match goal with
+    | [h : ?A |- _ ] => 
+      match A with
+        | @ex ?T ?P => match P with
+                          | fun u => _ => u
+                   end
+   end
+end.
+
+(* 'smart' destruct using the name we just computed *)
+Ltac one_destruct h :=
+   let a := extract_name h in
+   destruct h as [a h].
+
+Goal (exists (a:A) (b:B) (c:C), P a b c) -> Q.
+  intros H.
+  one_destruct H. one_destruct H. one_destruct H.
+repeat (one_destruct H).
+Abort.
+(* the goal is now
+1 subgoals
+a : A
+b : B
+c : C
+H : P a b c
+______________________________________(1/1)
+Q
+*)
+
+
+Ltac ih_dep_destruct :=
+  match goal with
+    | [ IHp1 : forall (p2t:protoType) (p2: protoExp p2t),
+         Dual _ _ -> exists _ _ _ _ _ _ _ _, _,
+          H : protoType,
+          H2 : message ?t0 -> (protoExp _),
+          H3 : message ?t0
+        |- _
+        ] => dep_destruct (IHp1 H (H2 H3))
+  end.
+
+Hint Constructors multi.
+Hint Resolve updateBoth.
+
 Theorem normalization {p1t p2t :protoType} :
     forall (p1:protoExp p1t) (p2:protoExp p2t),
       (Dual p1 p2) ->
@@ -170,10 +237,94 @@ Proof.
   intros.
   generalize dependent p2. generalize dependent p2t.
   induction p1; destruct p2;
-  try (intros H; inversion H).
-  inversion H. subst.
+  try (intros H; inversion H; subst).
+  ih_dep_destruct. assumption.
+
+
+  Ltac ih_destruct :=
+  match goal with
+    | [ H: exists _, _
+        |- _
+        ] => destruct H
+  end.
+
+  repeat ih_destruct.
+
+  Ltac multi_destruct :=
+  match goal with
+    | [ H: multi _ _ _ _ _ _ _ _  /\ _
+        |- _
+        ] => destruct H
+  end.
+  repeat multi_destruct.
+  
+  eexists. eexists. eexists. eexists.
+  eexists. eexists. eexists. eexists.
+  split. eapply multi_step. constructor. constructor. eassumption.
+  split. apply multi_step with (y:=(p m)) (y2:=p1) (st':=(updateState m x6)) (st2:=x4) (st2':=x4). constructor. constructor. apply updateBoth. eassumption. assumption.
+
+  intros. inversion H0; subst.
+
+  Ltac ih_dep_destruct' :=
+  match goal with
+    | [ IHp1 : forall m (p2t:protoType) (p2: protoExp p2t),
+         Dual _ _ -> exists _ _ _ _ _ _ _ _, _,
+          H : protoType,
+          H2 : (protoExp _),
+          H3: message _
+        |- _
+        ] => dep_destruct (IHp1 H3 H H2)
+                end.
+  ih_dep_destruct'. assumption.
+
+  repeat ih_destruct.
+  repeat multi_destruct.
+
+
+  eexists. eexists. eexists. eexists.
+  eexists. eexists. eexists. eexists.
+  
+  split. apply multi_step with (y:=(p m)) (y2:=p2) (st':=(updateState m x4)) (st2:=x4) (st2':=x4). constructor. constructor. apply updateBoth. eassumption.
+  split. apply multi_step with (y:=(p2)) (y2:=(p m)) (st':=x6) (st2:=x4) (st2':=(updateState m x4)). constructor. constructor. eassumption. assumption.
+
+  intros. inversion H0.
+  intros. inversion H0.
+  intros. inversion H0.
+  intros. inversion H0.
+
+  eapply multi_step; constructor. eassumption.
+  
+  apply multi_step with (y:=p2) (st':=(updateState m x6)) (st2:=x4) (st2':=x4).
+  apply multi_step with (y:=p2) (y2:=(p m)) (st':=x4) (st2:=x6) (st2':=(updateState m x6)).
+
+
+  eapply multi_step. constructor. constructor. eassumption.
+  split. apply multi_step with (y:=(p m)) (st':=(updateState m x6)) (st2:=x4) (st2':=x4). constructor. constructor. apply updateBoth. eassumption. assumption.
+
+  
+
+  
+  constructor.
+  split. constructor
+  constructor
+  exists x2. exists x3.
+  exists x4. exists x5. exists x6. exists (updateState m x7).
+
+  
+  try (ih_dep_destruct; inversion H; assumption).
   dep_destruct (IHp1 p'0 (p m)).
-  inversion H. assumption.
+               inversion H. assumption.
+
+
+
+
+  dep_destruct 
+           (p3t p4t : protoType) (p3 : protoExp p3t) 
+         (p4 : protoExp p4t) (st st' st2 st2' : State),
+           (multie st p1) p2 p3 st' /\
+           (multie st2 p2) p1 p4 st2' /\ normal_form p3 p4
+
+  
   destruct H0. destruct H0. destruct H0. destruct H0. destruct H0. destruct H0. destruct H0. destruct H0. destruct H4. eexists. eexists. exists x2. exists x3.
   exists x4. exists x5. exists x6. exists (updateState m x7).
 
@@ -254,11 +405,6 @@ Proof.
   simpl. trivial.
 Qed.
 
-Ltac bool_destruct :=
-  match goal with H: bool |- _ =>
-                  destruct H
-  end.
-
 Theorem progress {t t':protoType} :
     forall (p1:protoExp t) (p2:protoExp t') st, 
     (Dual p1 p2) ->
@@ -276,15 +422,6 @@ Proof.
   left. simpl. trivial.
 Qed.
 
-Ltac steps_destruct :=
-  match goal with H: step _ _ _ _ _ _ _ _ /\ _ |- _ =>
-                  destruct H
-  end.
-
-Ltac step_destruct :=
-  match goal with H: step _ _ _ _ _ _ _ _ |- _ =>
-                  dep_destruct H; clear H
-  end.
 Theorem preservation {t t' p3t p4t : protoType} :
     forall (p1:protoExp t) (p2:protoExp t'), 
     (Dual p1 p2) -> 
