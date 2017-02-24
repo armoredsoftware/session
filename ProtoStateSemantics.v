@@ -62,7 +62,7 @@ Qed.
 Axiom updateBoth :  forall t (m:message t) x6 x7 p1t p2t p3t (p1:protoExp p1t) (p2:protoExp p2t) (p3: protoExp p3t),
     multi x6 _ _ _ p1 p2 p3 x7 ->
     multi (updateState m x6) _ _ _ p1 p2 p3 (updateState m x7).
-
+(*
 Theorem normalization {p1t p2t :protoType} :
     forall (p1:protoExp p1t) (p2:protoExp p2t),
       (Dual p1 p2) ->
@@ -227,3 +227,4 @@ Proof.
   intros. apply nf_is_value in H0. assumption. assumption.
   intros. apply value_is_nf in H0. assumption.
 Qed.
+*)

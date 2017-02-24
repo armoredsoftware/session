@@ -88,7 +88,7 @@ Fixpoint obligationsK'{mt:type} (m:message mt) (kl: list (message Key))
 Definition obligationsK{mt:type} (m:message mt) : ob Key :=
   obligationsK' m nil nil.
 
-Definition updateState{t:type} (m:message t) (sIn: State) : State :=
+(*Definition updateState{t:type} (m:message t) (sIn: State) : State :=
   match t with
   | Basic => mkState  sIn.(keys) (addMBasic t m sIn.(basics)) sIn.(kOb) sIn.(bOb)
   | Key => mkState (addMKey t m sIn.(keys)) sIn.(basics) sIn.(kOb) sIn.(bOb)
@@ -96,4 +96,6 @@ Definition updateState{t:type} (m:message t) (sIn: State) : State :=
                                        ((obligationsK m) ++ sIn.(kOb))
                                        ((obligations m) ++ sIn.(bOb))                                                                    
   | _ =>  sIn
-  end.
+  end. *)
+
+Definition updateState{t:type} (m:message t) (sIn: State) : State := sIn.
