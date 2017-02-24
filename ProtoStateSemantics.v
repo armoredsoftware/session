@@ -5,6 +5,7 @@ Require Import Eqdep_dec.
 Require Import Program.
 Require Import SfLib.
 Require Import Coq.Program.Equality.
+Require Import LibTactics.
 
 Definition ob (t:type) := list ((message t) * (list (message Key))).
 
@@ -128,7 +129,7 @@ Inductive step : forall (s:State) (t r t':protoType),
                      (r:protoExp rt) (r0:protoExp rt')                     (s:protoExp st) (s0:protoExp st') stt,
     step stt _ _ _ (OfferC r0 s0) (ChoiceC false r s) s0 stt.
 
-Notation "'stepe' st st'" := (step st _ _ _ st') (at level 50).
+(*Notation "'stepe' st st'" := (step st _ _ _ st') (at level 50).*)
 
 Inductive multi : forall s (t r t':protoType),
     (protoExp t) -> (protoExp r)  -> (protoExp t') -> State -> Prop :=
@@ -253,41 +254,48 @@ Proof.
   simpl. trivial.
 Qed.
 
+Ltac bool_destruct :=
+  match goal with H: bool |- _ =>
+                  destruct H
+  end.
+
 Theorem progress {t t':protoType} :
     forall (p1:protoExp t) (p2:protoExp t') st, 
     (Dual p1 p2) ->
     isValue p1 \/ (exists t''(p3:protoExp t'') st', step st _ _ _ p1 p2 p3 st').
 Proof.
-  intros p1 p2 st dualProof. destruct p1; destruct p2; inversion dualProof.
+  intros p1 p2 st dualProof. destruct p1; destruct p2; inversion dualProof;
   (* Case:  p1 = SendC, p2 = ReceiveC *)
-  right. subst.
-    exists p'. exists p1. eexists. constructor.
   (* Case:  p1 = ReceiveC, p2 = SendC *)
-  right. subst.
-    exists p'. exists (p m). eexists. constructor.
   (* Case:  p1 = ChoiceC, p2 = OfferC *)
-  right. destruct b.
-    exists r. exists p1_1. eexists. constructor.
-    exists s. exists p1_2. eexists. constructor.
-  (* Case:  p1 = OfferC, p2 = ChoiceC *)
-  right. destruct b.
-    exists r. exists p1_1. eexists. constructor.
-    exists s. exists p1_2. eexists. constructor.
+  (* Case:  p1 = OfferC, p2 = ChoiceC *)                             
+  try (right; 
+       try (bool_destruct);
+       subst; repeat (eexists); constructor).
   (* Case:  p1 = ReturnC, p2 = ReturnC *)
   left. simpl. trivial.
 Qed.
 
+Ltac steps_destruct :=
+  match goal with H: step _ _ _ _ _ _ _ _ /\ _ |- _ =>
+                  destruct H
+  end.
+
+Ltac step_destruct :=
+  match goal with H: step _ _ _ _ _ _ _ _ |- _ =>
+                  dep_destruct H; clear H
+  end.
 Theorem preservation {t t' p3t p4t : protoType} :
     forall (p1:protoExp t) (p2:protoExp t'), 
     (Dual p1 p2) -> 
     forall (p3:protoExp p3t) (p4:protoExp p4t) st st' st2 st2',
-      (step st _ _ _ p1 p2 p3 st' /\
-       step st2 _ _ _ p2 p1 p4 st2')
+      step st _ _ _ p1 p2 p3 st' /\
+      step st _ _ _ p1 p2 p3 st' /\
+       step st2 _ _ _ p2 p1 p4 st2'
       -> (Dual p3 p4).
 Proof.
   intros p1 p2 dualProof. destruct p1; destruct p2; inversion dualProof;
-  try (intros; destruct H1; dep_destruct H1; dep_destruct H2; assumption).
-  intros. destruct H. inversion H.
+  intros; try (repeat steps_destruct); (repeat step_destruct); assumption.
 Qed.
 
 Lemma value_is_nf {t t':protoType} (p1:protoExp t) (p2:protoExp t') :
@@ -303,22 +311,18 @@ Lemma nf_is_value {t t':protoType} (p1:protoExp t) (p2:protoExp t') : (Dual p1 p
 Proof.
   unfold normal_form.
   intros D H.
-  destruct p1; destruct p2; try (inversion D).
-  destruct H with (st:=emptyState) (st':=emptyState). eexists. eexists. subst. constructor.
-  destruct H with (st:=emptyState) (st':=updateState m emptyState). exists p'. subst. exists (p m). constructor.
-  destruct b.
-  destruct H with (st:=emptyState) (st':=emptyState). exists r. exists p1_1. constructor.
-  destruct H with (st:=emptyState) (st':=emptyState). exists s. exists p1_2. constructor.
-  destruct b.
-  destruct H with (st:=emptyState) (st':=emptyState). exists r. exists p1_1. constructor.
-  destruct H with (st:=emptyState) (st':=emptyState). exists s. exists p1_2. constructor.
-  
-  simpl. split; trivial.
+  destruct p1; destruct p2; try (inversion D);
+  try (try bool_destruct; destruct H with (st:=emptyState) (st':=emptyState);
+       repeat eexists; subst; constructor).
+
+  destruct H with (st:=emptyState) (st':=updateState m emptyState);
+    eexists; subst; eexists; constructor.
+  jauto.
 Qed.
 
 Corollary nf_same_as_value {t t':protoType} (p1:protoExp t) (p2:protoExp t')
   : (Dual p1 p2) -> normal_form p1 p2 <-> (isValue p1) /\ (isValue p2).
-Proof.
+Proof. 
   intros. split.
   intros. apply nf_is_value in H0. assumption. assumption.
   intros. apply value_is_nf in H0. assumption.
