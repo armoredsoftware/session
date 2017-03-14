@@ -1,4 +1,5 @@
 all:
+	coqc LibTactics.v
 	coqc CpdtTactics.v
 	coqc Crypto.v
 	coqc ProtoRep.v

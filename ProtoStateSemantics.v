@@ -292,6 +292,10 @@ Proof.
   intros. inversion H0.
   intros. inversion H0.
 
+Abort.
+
+(*
+
   eapply multi_step; constructor. eassumption.
   
   apply multi_step with (y:=p2) (st':=(updateState m x6)) (st2:=x4) (st2':=x4).
@@ -393,6 +397,8 @@ Proof.
   split. constructor. split. constructor.
   unfold normal_form. intros. unfold not. intros. destruct H0. destruct H0. inversion H0.
 Qed.
+
+*)
 
 Definition isValue {t:protoType} (p:protoExp t) : Prop :=
   match p with
