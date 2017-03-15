@@ -1,0 +1,8 @@
+-R . MyFancyLib
+CpdtTactics.v
+Crypto.v
+Examples.v
+LibTactics.v
+ProtoRep.v
+ProtoStateSemantics.v
+SfLib.v

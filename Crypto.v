@@ -23,7 +23,6 @@ Require Import CpdtTactics.
 Require Import Eqdep_dec.
 Require Import Peano_dec.
 Require Import Coq.Program.Equality.
-Add LoadPath "/Users/adampetz/Documents/Fall_2015_Courses/armored/session/protosynth".
 (*Require Import Messages.*)
 
 (** Ltac helper functions for discharging cases generated from sumbool types
